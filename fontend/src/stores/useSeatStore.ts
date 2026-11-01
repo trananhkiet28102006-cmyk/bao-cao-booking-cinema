@@ -1,170 +1,234 @@
-import { create } from 'zustand';
-import { Seat, SeatType, SeatStatus } from '@/types/seat.types';
+import { useSyncExternalStore } from 'react';
 
-// Dựng sơ đồ ghế mẫu cho rạp chuẩn rạp CGV IMAX Đồng Khởi (8 hàng A->H, 3 block)
-export const generateInitialSeats = (): Seat[] => {
-  const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-  const seats: Seat[] = [];
+export type SeatType = 'STANDARD' | 'VIP' | 'COUPLE';
+export type SeatStatus = 'AVAILABLE' | 'BOOKED' | 'HOLD';
 
-  rows.forEach((row, rowIndex) => {
-    // Độ sâu Z tăng dần từ hàng A (gần màn hình) về sau
-    // Độ cao Y tăng dần (bậc thang rạp chiếu)
-    const z = -2 + rowIndex * 1.1;
-    const y = rowIndex * 0.35;
+export interface SeatData {
+  id: string;
+  seatDbId: number;
+  row: string;
+  col: number;
+  block: 'LEFT' | 'CENTER' | 'RIGHT';
+  type: SeatType;
+  price: number;
+  status: SeatStatus;
+}
 
-    // Xác định loại ghế theo hàng
-    let type: SeatType = 'STANDARD';
-    let price = 85000;
-    if (rowIndex >= 3 && rowIndex <= 5) {
-      type = 'VIP';
-      price = 120000;
-    } else if (rowIndex >= 6) {
-      type = 'COUPLE';
-      price = 200000;
-    }
+export interface BackendSeatInput {
+  seatId: number;
+  seatNumber: string;
+  rowName: string;
+  rowIndex: number;
+  colIndex: number;
+  seatType: string;
+  status: string;
+  price: number | null;
+}
 
-    // 16 ghế mỗi hàng chia làm 3 block: Left (1-4), Center (5-12), Right (13-16)
-    for (let num = 1; num <= 16; num++) {
-      let block: 'LEFT' | 'CENTER' | 'RIGHT' = 'CENTER';
-      let xOffset = 0;
+export interface SeatPriceMap {
+  STANDARD: number;
+  VIP: number;
+  COUPLE: number;
+}
 
-      if (num <= 4) {
-        block = 'LEFT';
-        xOffset = (num - 2.5) * 0.7 - 2.0; // Khoảng cách lối đi bên trái
-      } else if (num >= 13) {
-        block = 'RIGHT';
-        xOffset = (num - 14.5) * 0.7 + 2.0; // Khoảng cách lối đi bên phải
-      } else {
-        block = 'CENTER';
-        xOffset = (num - 8.5) * 0.7; // Block trung tâm
-      }
+interface SeatState {
+  seats: SeatData[];
+  selectedSeats: SeatData[];
+  hoveredSeatId: string | null;
+  zoomLevel: number;
+  isBackendSynced: boolean;
+  syncFromBackend: (
+    backendSeats: BackendSeatInput[],
+    priceMap?: SeatPriceMap
+  ) => void;
+  updateLiveSeats: (
+    backendSeats: BackendSeatInput[],
+    priceMap?: SeatPriceMap
+  ) => string[];
+  markSelectedAsBooked: () => void;
+  toggleSeat: (seatId: string) => void;
+  clearSelection: () => void;
+  setHoveredSeat: (seatId: string | null) => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  resetZoom: () => void;
+}
 
-      const code = `${row}${num < 10 ? '0' + num : num}`;
-      const id = `seat-${code}`;
+/**
+ * Chuyển đổi trực tiếp danh sách ghế thực tế từ MySQL (GET /api/v1/showtimes/{id}/seats)
+ * thành sơ đồ ghế 2D theo hàng/cột và khối ghế (Trái - Giữa - Phải)
+ */
+function buildSeatsFromDatabase(
+  backendSeats: BackendSeatInput[],
+  priceMap: SeatPriceMap = { STANDARD: 90000, VIP: 120000, COUPLE: 190000 }
+): SeatData[] {
+  if (!backendSeats || backendSeats.length === 0) return [];
 
-      // Giả lập một vài ghế đã bán để giống thực tế
-      let status: SeatStatus = 'AVAILABLE';
-      if ((row === 'A' && num === 5) || (row === 'B' && num === 8) || (row === 'F' && num === 7)) {
-        status = 'SOLD';
-      }
-
-      // Hai ghế C04 và C05 mặc định là SELECTED theo đúng ảnh mẫu concept
-      if (code === 'C04' || code === 'C05') {
-        status = 'SELECTED';
-      }
-
-      seats.push({
-        id,
-        code,
-        rowLabel: row,
-        seatNumber: num,
-        type,
-        status,
-        price,
-        position3D: [xOffset, y, z],
-        block,
-      });
+  const maxColByRow = new Map<string, number>();
+  backendSeats.forEach((bs) => {
+    const r = (bs.rowName || bs.seatNumber.charAt(0)).toUpperCase();
+    const currentMax = maxColByRow.get(r) || 0;
+    if (bs.colIndex > currentMax) {
+      maxColByRow.set(r, bs.colIndex);
     }
   });
 
-  return seats;
-};
+  return backendSeats.map((bs) => {
+    const row = (bs.rowName || bs.seatNumber.charAt(0)).toUpperCase();
+    const col = bs.colIndex || parseInt(bs.seatNumber.slice(1), 10) || 1;
+    const maxCols = maxColByRow.get(row) || 12;
 
-interface SeatStore {
-  seats: Seat[];
-  selectedSeatIds: string[];
-  hoveredSeat: Seat | null;
-  viewMode: '3D' | '2D';
-  maxSeats: number;
-  
-  // Actions
-  toggleSeat: (seatId: string) => void;
-  removeSeat: (seatId: string) => void;
-  clearSelection: () => void;
-  setHoveredSeat: (seat: Seat | null) => void;
-  setViewMode: (mode: '3D' | '2D') => void;
-  getTotalPrice: () => number;
-  getSelectedSeats: () => Seat[];
+    const sideCount = maxCols >= 11 ? 3 : 2;
+    const rightStart = maxCols - sideCount + 1;
+
+    let block: 'LEFT' | 'CENTER' | 'RIGHT' = 'CENTER';
+    if (col <= sideCount) block = 'LEFT';
+    else if (col >= rightStart) block = 'RIGHT';
+
+    const rawType = (bs.seatType || 'standard').toUpperCase();
+    const type: SeatType =
+      rawType === 'VIP'
+        ? 'VIP'
+        : rawType === 'COUPLE'
+        ? 'COUPLE'
+        : 'STANDARD';
+
+    const status: SeatStatus =
+      bs.status?.toUpperCase() === 'BOOKED'
+        ? 'BOOKED'
+        : bs.status?.toUpperCase() === 'HOLD'
+        ? 'HOLD'
+        : 'AVAILABLE';
+
+    const price =
+      bs.price !== null && bs.price !== undefined
+        ? Number(bs.price)
+        : priceMap[type];
+
+    return {
+      id: bs.seatNumber.trim().toUpperCase(),
+      seatDbId: bs.seatId,
+      row,
+      col,
+      block,
+      type,
+      price,
+      status,
+    };
+  });
 }
 
-export const useSeatStore = create<SeatStore>((set, get) => {
-  const initialSeats = generateInitialSeats();
-  const initialSelectedIds = ['seat-C04', 'seat-C05'];
+let storeState: SeatState = {
+  seats: [],
+  selectedSeats: [],
+  hoveredSeatId: null,
+  zoomLevel: 1,
+  isBackendSynced: false,
 
-  return {
-    seats: initialSeats,
-    selectedSeatIds: initialSelectedIds,
-    hoveredSeat: null,
-    viewMode: '3D',
-    maxSeats: 6,
+  syncFromBackend: (backendSeats, priceMap) => {
+    const dbSeats = buildSeatsFromDatabase(backendSeats, priceMap);
 
-    toggleSeat: (seatId: string) => {
-      const { seats, selectedSeatIds, maxSeats } = get();
-      const targetSeat = seats.find((s) => s.id === seatId);
+    // Chọn mặc định 2 ghế trống trung tâm hàng C (C04, C05) từ dữ liệu thật của DB
+    const defaultPick = dbSeats.filter(
+      (s) => (s.id === 'C04' || s.id === 'C05') && s.status === 'AVAILABLE'
+    );
+    const fallbackPick =
+      defaultPick.length > 0
+        ? defaultPick
+        : dbSeats.filter((s) => s.status === 'AVAILABLE').slice(0, 2);
 
-      if (!targetSeat || targetSeat.status === 'SOLD' || targetSeat.status === 'HELD') {
-        return;
+    setState({
+      seats: dbSeats,
+      selectedSeats: fallbackPick,
+      isBackendSynced: true,
+    });
+  },
+
+  updateLiveSeats: (backendSeats, priceMap) => {
+    const dbSeats = buildSeatsFromDatabase(backendSeats, priceMap);
+    const conflictedSeats: string[] = [];
+
+    // Tự động kiểm tra xem ghế hiện tại người dùng đang chọn có bị ai khác đặt trước không
+    const nextSelected = storeState.selectedSeats.filter((sel) => {
+      const live = dbSeats.find((s) => s.id === sel.id);
+      if (live && (live.status === 'BOOKED' || live.status === 'HOLD')) {
+        conflictedSeats.push(sel.id);
+        return false;
       }
+      return true;
+    });
 
-      const isAlreadySelected = selectedSeatIds.includes(seatId);
-
-      if (isAlreadySelected) {
-        // Bỏ chọn
-        set({
-          selectedSeatIds: selectedSeatIds.filter((id) => id !== seatId),
-          seats: seats.map((s) =>
-            s.id === seatId ? { ...s, status: 'AVAILABLE' } : s
-          ),
-        });
-      } else {
-        // Chọn mới (giới hạn tối đa 6 ghế)
-        if (selectedSeatIds.length >= maxSeats) {
-          alert(`Bạn chỉ có thể chọn tối đa ${maxSeats} ghế cho mỗi đơn hàng.`);
-          return;
-        }
-
-        set({
-          selectedSeatIds: [...selectedSeatIds, seatId],
-          seats: seats.map((s) =>
-            s.id === seatId ? { ...s, status: 'SELECTED' } : s
-          ),
-        });
-      }
-    },
-
-    removeSeat: (seatId: string) => {
-      const { seats, selectedSeatIds } = get();
-      set({
-        selectedSeatIds: selectedSeatIds.filter((id) => id !== seatId),
-        seats: seats.map((s) =>
-          s.id === seatId ? { ...s, status: 'AVAILABLE' } : s
-        ),
+    // Kiểm tra xem có thay đổi trạng thái ghế nào so với danh sách cũ hay không
+    const hasStatusChange =
+      storeState.seats.length !== dbSeats.length ||
+      conflictedSeats.length > 0 ||
+      dbSeats.some((s, idx) => {
+        const old = storeState.seats[idx];
+        return !old || old.status !== s.status;
       });
-    },
 
-    clearSelection: () => {
-      const { seats } = get();
-      set({
-        selectedSeatIds: [],
-        seats: seats.map((s) =>
-          s.status === 'SELECTED' ? { ...s, status: 'AVAILABLE' } : s
-        ),
+    if (hasStatusChange) {
+      setState({
+        seats: dbSeats,
+        selectedSeats: nextSelected,
       });
-    },
+    }
 
-    setHoveredSeat: (seat) => set({ hoveredSeat: seat }),
-    setViewMode: (mode) => set({ viewMode: mode }),
+    return conflictedSeats;
+  },
 
-    getTotalPrice: () => {
-      const { seats, selectedSeatIds } = get();
-      return seats
-        .filter((s) => selectedSeatIds.includes(s.id))
-        .reduce((sum, s) => sum + s.price, 0);
-    },
+  markSelectedAsBooked: () => {
+    const selectedIds = new Set(storeState.selectedSeats.map((s) => s.id));
+    const nextSeats = storeState.seats.map((s) =>
+      selectedIds.has(s.id) ? { ...s, status: 'BOOKED' as SeatStatus } : s
+    );
+    setState({
+      seats: nextSeats,
+    });
+  },
 
-    getSelectedSeats: () => {
-      const { seats, selectedSeatIds } = get();
-      return seats.filter((s) => selectedSeatIds.includes(s.id));
-    },
-  };
-});
+  toggleSeat: (seatId) => {
+    const seat = storeState.seats.find((s) => s.id === seatId);
+    if (!seat || seat.status !== 'AVAILABLE') return;
+
+    const isSelected = storeState.selectedSeats.some((s) => s.id === seatId);
+    if (isSelected) {
+      setState({
+        selectedSeats: storeState.selectedSeats.filter((s) => s.id !== seatId),
+      });
+    } else {
+      if (storeState.selectedSeats.length >= 6) return;
+      setState({
+        selectedSeats: [...storeState.selectedSeats, seat],
+      });
+    }
+  },
+
+  clearSelection: () => setState({ selectedSeats: [] }),
+  setHoveredSeat: (seatId) => setState({ hoveredSeatId: seatId }),
+  zoomIn: () =>
+    setState({ zoomLevel: Math.min(1.25, +(storeState.zoomLevel + 0.1).toFixed(2)) }),
+  zoomOut: () =>
+    setState({ zoomLevel: Math.max(0.8, +(storeState.zoomLevel - 0.1).toFixed(2)) }),
+  resetZoom: () => setState({ zoomLevel: 1 }),
+};
+
+const listeners = new Set<() => void>();
+
+function setState(partial: Partial<SeatState>) {
+  storeState = { ...storeState, ...partial };
+  listeners.forEach((listener) => listener());
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function getState() {
+  return storeState;
+}
+
+export function useSeatStore(): SeatState {
+  return useSyncExternalStore(subscribe, getState, getState);
+}

@@ -1,5 +1,11 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
+/* ============================================================================
+   DESIGN SYSTEM TOKENS (Three-Layer Architecture: Primitive -> Semantic -> Component)
+   Supports Seamless Dark Mode (Default) & Light Mode (`html.theme-light`)
+   ============================================================================ */
 :root {
   --color-bg: #030916;
   --color-bg-secondary: #050C1B;
@@ -23,29 +29,666 @@
   --color-text-muted: #7F91AF;
 
   --color-rating: #FFB52E;
+
+  /* ============================================================================
+     MOTION DESIGN SYSTEM TOKENS (Design-Taste & Frontend-Design Skill)
+     ============================================================================ */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.76, 0, 0.24, 1);
+  --ease-bounce-subtle: cubic-bezier(0.34, 1.25, 0.64, 1);
+
+  --t-press: 140ms;
+  --t-hover: 180ms;
+  --t-ui: 240ms;
+  --t-reveal: 650ms;
+}
+
+html.theme-light {
+  --color-bg: #F4F7FB;
+  --color-bg-secondary: #FFFFFF;
+  --color-sidebar: #FFFFFF;
+  --color-surface: #FFFFFF;
+  --color-surface-raised: #EEF2F9;
+  --color-input: #F1F5F9;
+
+  --color-primary: #693BFF;
+  --color-primary-hover: #5829E8;
+  --color-primary-active: #471BC7;
+  --color-primary-highlight: #5B21B6;
+  --color-primary-tinted: #EDE9FE;
+
+  --color-border: #CBD5E1;
+  --color-border-strong: #94A3B8;
+  --color-border-primary: #7C3AED;
+
+  --color-text: #0F172A;
+  --color-text-secondary: #334155;
+  --color-text-muted: #64748B;
 }
 
 body {
   background-color: var(--color-bg);
   color: var(--color-text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   overflow-x: hidden;
-  margin: 0;
-  padding: 0;
+  transition: background-color 0.25s ease, color 0.25s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Tùy chỉnh thanh cuộn tinh tế */
+/* Automatic Semantic Surface Overrides when Light Mode (`html.theme-light`) is active */
+html.theme-light {
+  color: #0F172A !important;
+}
+
+html.theme-light body {
+  background-color: #F8FAFC !important;
+  color: #0F172A !important;
+}
+
+html.theme-light .theme-shell {
+  background-color: #F8FAFC !important;
+  color: #0F172A !important;
+}
+
+html.theme-light aside,
+html.theme-light header {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  border-color: #E2E8F0 !important;
+  color: #0F172A !important;
+}
+
+html.theme-light .theme-card {
+  background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+  color: #0F172A !important;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04) !important;
+}
+
+html.theme-light .theme-subcard {
+  background-color: #F8FAFC !important;
+  border-color: #E2E8F0 !important;
+  color: #0F172A !important;
+}
+
+html.theme-light .theme-input {
+  background-color: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+  color: #0F172A !important;
+}
+
+html.theme-light .theme-text-main {
+  color: #0F172A !important;
+}
+
+html.theme-light .theme-text-muted {
+  color: #475569 !important;
+}
+
+/* Light Mode Overrides for Dark Background utility classes (Ultra-fast, zero universal wildcards) */
+html.theme-light [class*="bg-[#061020]"],
+html.theme-light [class*="bg-[#040B18]"],
+html.theme-light [class*="bg-[#030916]"] {
+  background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+}
+
+html.theme-light [class*="bg-[#0A1830]"],
+html.theme-light [class*="bg-[#102344]"],
+html.theme-light [class*="bg-[#12284D]"] {
+  background-color: #F8FAFC !important;
+  border-color: #E2E8F0 !important;
+}
+
+/* Track backgrounds for progress bars, chart tracks (NEVER white, always tinted slate-200) */
+html.theme-light [class*="bg-[#050D1A]"] {
+  background-color: #E2E8F0 !important;
+  border-color: #CBD5E1 !important;
+}
+
+html.theme-light [class*="border-[#172A48]"],
+html.theme-light [class*="border-[#1E365F]"],
+html.theme-light [class*="border-[#1B325B]"],
+html.theme-light [class*="border-[#243E6C]"],
+html.theme-light [class*="border-[#254475]"],
+html.theme-light [class*="divide-[#172A48]"] {
+  border-color: #E2E8F0 !important;
+}
+
+/* Headings in Light Mode */
+html.theme-light h1,
+html.theme-light h2,
+html.theme-light h3,
+html.theme-light h4,
+html.theme-light h5,
+html.theme-light h6 {
+  color: #0F172A;
+}
+
+/* Cinematic Hero Stages: ALWAYS preserve dark cinema contrast and white text */
+.hero-stage-dark,
+.hero-stage-dark * {
+  /* Prevent background and text from being inverted */
+}
+html.theme-light .hero-stage-dark h1,
+html.theme-light .hero-stage-dark h2,
+html.theme-light .hero-stage-dark h3,
+html.theme-light .hero-stage-dark .hero-anim-title {
+  color: #FFFFFF !important;
+}
+html.theme-light .hero-stage-dark p,
+html.theme-light .hero-stage-dark .text-[#AAB8D0] {
+  color: #CBD5E1 !important;
+}
+html.theme-light .hero-stage-dark .text-white {
+  color: #FFFFFF !important;
+}
+html.theme-light .hero-stage-dark button,
+html.theme-light .hero-stage-dark a {
+  color: #FFFFFF !important;
+}
+
+/* KPI numbers and card titles */
+html.theme-light [class*="kpi-val-"] {
+  color: #0F172A !important;
+}
+
+html.theme-light .text-[#CBD5E1],
+html.theme-light .text-[#AAB8D0] {
+  color: #334155 !important;
+}
+
+html.theme-light .text-[#7F91AF],
+html.theme-light .text-[#94A3B8],
+html.theme-light .text-[#64748B] {
+  color: #64748B !important;
+}
+
+/* Inputs, Selects & Placeholders in Light Mode */
+html.theme-light input,
+html.theme-light select,
+html.theme-light textarea {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+  border-color: #CBD5E1 !important;
+}
+
+html.theme-light input::placeholder,
+html.theme-light textarea::placeholder {
+  color: #94A3B8 !important;
+}
+
+/* CRITICAL: Badges, Buttons & Icon Squares with gradients MUST keep crisp white icons and text */
+html.theme-light button[class*="bg-gradient-"]:not(.bg-white),
+html.theme-light a[class*="bg-gradient-"]:not(.bg-white),
+html.theme-light button[class~="bg-[#693BFF]"]:not(.nav-tab):not([class*="after:bg-"]),
+html.theme-light a[class~="bg-[#693BFF]"]:not(.nav-tab):not([class*="after:bg-"]),
+html.theme-light aside a [class*="bg-gradient-"] *,
+html.theme-light aside button[class*="bg-[#693BFF]"],
+html.theme-light .bg-rose-500,
+html.theme-light .bg-emerald-500,
+html.theme-light .bg-pink-500,
+html.theme-light .bg-blue-600,
+html.theme-light .bg-amber-500,
+html.theme-light .bg-violet-600,
+html.theme-light .keep-white,
+html.theme-light .keep-white * {
+  color: #FFFFFF !important;
+}
+
+/* Navigation tabs in Light Mode */
+html.theme-light .nav-tab,
+html.theme-light nav button.nav-tab {
+  color: #475569;
+}
+html.theme-light .nav-tab.nav-tab-active,
+html.theme-light nav button.nav-tab.nav-tab-active {
+  color: #693BFF !important;
+}
+
+/* NÚT VÀO TRANG ADMIN TRÊN THANH GRADIENT BANNER (BUỘC CHỮ TÍM ĐẬM TRÊN NỀN TRẮNG) */
+html.theme-light a.admin-banner-btn,
+html.theme-light a.admin-banner-btn *,
+html.theme-light [class*="from-"] a.admin-banner-btn,
+html.theme-light [class*="from-"] a.admin-banner-btn *,
+html.theme-light [class*="bg-gradient-"] a.admin-banner-btn,
+html.theme-light [class*="bg-gradient-"] a.admin-banner-btn *,
+a.admin-banner-btn,
+a.admin-banner-btn * {
+  color: #2E1065 !important;
+}
+
+html.theme-light a.admin-banner-btn:hover,
+html.theme-light a.admin-banner-btn:hover *,
+a.admin-banner-btn:hover,
+a.admin-banner-btn:hover * {
+  color: #0F172A !important;
+}
+
+/* Table Light Mode Overrides */
+html.theme-light thead tr {
+  background-color: #F8FAFC !important;
+  border-color: #E2E8F0 !important;
+}
+html.theme-light thead th {
+  color: #475569 !important;
+}
+html.theme-light tbody tr {
+  border-color: #F1F5F9 !important;
+}
+html.theme-light tbody tr:hover {
+  background-color: #F8FAFC !important;
+}
+
+/* Custom scrollbars */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: var(--color-bg);
 }
 ::-webkit-scrollbar-thumb {
-  background: #172A48;
-  border-radius: 9999px;
+  background: var(--color-border);
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #22436D;
+  background: var(--color-primary);
+}
+
+/* ============================================================================
+   MOTION & ANIMATION UTILITIES (Polished micro-interactions & signature choreo)
+   ============================================================================ */
+
+/* 1. Button Press & Click Depth */
+.btn-press {
+  transition: transform var(--t-press) var(--ease-out), filter var(--t-press) var(--ease-out);
+}
+.btn-press:active {
+  transform: scale(0.965);
+}
+
+/* 2. Cinema Card Interactive (Clean, Premium, Razor-Sharp) */
+.cinema-card,
+.m-card-hover {
+  position: relative;
+  transition: transform 260ms var(--ease-out), box-shadow 260ms var(--ease-out), border-color 260ms var(--ease-out);
+  will-change: transform, box-shadow;
+}
+.cinema-card:hover,
+.m-card-hover:hover {
+  transform: translateY(-4px);
+  border-color: rgba(105, 59, 255, 0.75) !important;
+  box-shadow: 0 12px 28px -6px rgba(105, 59, 255, 0.28), 0 0 0 1px rgba(105, 59, 255, 0.35) !important;
+}
+.cinema-card:active,
+.m-card-hover:active {
+  transform: translateY(-1px) scale(0.985);
+  transition-duration: 90ms;
+}
+
+/* Tactile Heart Button Pop */
+.heart-pop:active {
+  animation: heartClickPop 300ms var(--ease-bounce-subtle) forwards;
+}
+
+@keyframes heartClickPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+/* Interactive Table Row Hover (High performance - zero reflow) */
+.table-row-hover {
+  transition: background-color 150ms ease-out;
+}
+.table-row-hover:hover {
+  background-color: rgba(105, 59, 255, 0.08) !important;
+}
+
+/* Showtime Pill Hover & Click Depth */
+.pill-interactive {
+  transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out), box-shadow 160ms var(--ease-out);
+}
+.pill-interactive:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 4px 14px rgba(105, 59, 255, 0.3);
+}
+.pill-interactive:active {
+  transform: scale(0.96);
+}
+
+/* 3. Hero Masked Typography Rise */
+.m-mask {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+.m-mask > span {
+  display: inline-block;
+  will-change: transform, opacity;
+  animation: maskRise var(--t-reveal) var(--ease-expo) forwards;
+}
+
+@keyframes maskRise {
+  0% {
+    transform: translateY(105%);
+    opacity: 0.1;
+  }
+  100% {
+    transform: translateY(0%);
+    opacity: 1;
+  }
+}
+
+/* 3D Cinema Card Tilt & Glare */
+.cinema-card {
+  transform-style: preserve-3d;
+  will-change: transform, box-shadow;
+  transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.25s ease, border-color 0.2s ease;
+}
+
+/* Graffiti & Gradient Cinema Card FX */
+.graffiti-card {
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.graffiti-card:hover {
+  box-shadow: 0 16px 36px -8px rgba(105, 59, 255, 0.38), 0 0 24px rgba(236, 72, 153, 0.25), 0 0 0 1px rgba(168, 85, 247, 0.45) !important;
+}
+
+.cinema-glare {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  z-index: 15;
+  border-radius: inherit;
+}
+
+/* Hero Auto-Slide Progress Bar */
+@keyframes heroProgressBar {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+.hero-progress-fill {
+  animation: heroProgressBar 5s linear forwards;
+}
+
+/* 4. Hero Content Slide Transition */
+.m-hero-copy {
+  animation: heroCopyFade 450ms var(--ease-out) forwards;
+}
+
+@keyframes heroCopyFade {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 5. SVG Spline Curve Path Drawing */
+.m-draw {
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  will-change: stroke-dashoffset;
+  animation: svgPathDraw 1.4s var(--ease-expo) forwards;
+}
+.m-draw-late {
+  animation-delay: 220ms;
+}
+
+@keyframes svgPathDraw {
+  0% {
+    stroke-dashoffset: 1200;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* 6. Staggered Entrance for Items / KPI cards / Movie grid */
+.m-stagger-item {
+  opacity: 0;
+  transform: translateY(12px);
+  animation: staggerIn 460ms var(--ease-out) forwards;
+  animation-delay: calc(var(--stagger-idx, 0) * 65ms);
+}
+
+@keyframes staggerIn {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 7. Modal & Dropdown Pop-In */
+.m-pop-in {
+  animation: modalPopIn 220ms var(--ease-out) forwards;
+  transform-origin: center top;
+}
+
+@keyframes modalPopIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(-6px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* 8. Ambient Glow & Live Badge Pulse */
+.m-live-indicator {
+  position: relative;
+}
+.m-live-indicator::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  background: inherit;
+  opacity: 0.65;
+  animation: liveBadgePulse 2.2s infinite ease-in-out;
+  pointer-events: none;
+}
+
+@keyframes liveBadgePulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.65);
+    opacity: 0;
+  }
+}
+
+/* 9. Soft Fade-In fallback */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fadeIn {
+  animation: fadeIn 200ms var(--ease-out) forwards;
+}
+
+/* ============================================================================
+   SEAT MAP MICRO-INTERACTIONS & MOTION DESIGN (Frontend Motion Skill)
+   ============================================================================ */
+@keyframes seatPop {
+  0% {
+    transform: scale(0.85);
+  }
+  45% {
+    transform: scale(1.18) translateY(-2px);
+  }
+  75% {
+    transform: scale(1.05) translateY(-1px);
+  }
+  100% {
+    transform: scale(1.1) translateY(-1px);
+  }
+}
+
+@keyframes seatAuraPulse {
+  0%, 100% {
+    box-shadow: 0 0 14px rgba(168, 85, 247, 0.75), 0 0 0 1px rgba(233, 213, 255, 0.85);
+  }
+  50% {
+    box-shadow: 0 0 24px rgba(192, 132, 252, 0.95), 0 0 32px rgba(168, 85, 247, 0.5), 0 0 0 2px rgba(255, 255, 255, 0.9);
+  }
+}
+
+@keyframes seatShake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  20%, 60% {
+    transform: translateX(-3px);
+  }
+  40%, 80% {
+    transform: translateX(3px);
+  }
+}
+
+.seat-pop-selected {
+  animation: seatPop 260ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards, seatAuraPulse 2.4s infinite ease-in-out;
+  z-index: 20;
+}
+
+.seat-booked-shake:active {
+  animation: seatShake 250ms ease-in-out;
+}
+
+/* 10. Page & View Transitions (Crystal-clear, instant fade & crisp elevation - NO blur scaling!) */
+.page-transition {
+  animation: pageTransitionIn 220ms var(--ease-out) forwards;
+  will-change: opacity, transform;
+}
+
+@keyframes pageTransitionIn {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Route Navigation Shimmer Top Bar */
+.page-route-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  background: linear-gradient(90deg, #693BFF 0%, #A875FF 40%, #EC4899 80%, #693BFF 100%);
+  background-size: 200% 100%;
+  z-index: 999999;
+  pointer-events: none;
+  animation: topProgressAnim 450ms var(--ease-out) forwards;
+}
+
+@keyframes topProgressAnim {
+  0% {
+    width: 0%;
+    opacity: 1;
+  }
+  70% {
+    width: 88%;
+    opacity: 1;
+  }
+  100% {
+    width: 100%;
+    opacity: 0;
+  }
+}
+
+/* Cinema Skeleton Shimmer FX for Lazy Load on Scroll */
+.cinema-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(105, 59, 255, 0.14) 50%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.4s ease-in-out infinite;
+}
+
+html.theme-light .cinema-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.04) 0%,
+    rgba(105, 59, 255, 0.16) 50%,
+    rgba(0, 0, 0, 0.04) 100%
+  );
+  background-size: 200% 100%;
+}
+
+@keyframes skeletonShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* 11. Accessibility: prefers-reduced-motion override */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .page-transition {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .page-route-progress {
+    display: none !important;
+  }
+  .m-draw {
+    stroke-dashoffset: 0 !important;
+  }
+  .m-mask > span {
+    transform: none !important;
+    opacity: 1 !important;
+  }
+  .m-card-hover:hover {
+    transform: none !important;
+  }
+  .btn-press:active {
+    transform: none !important;
+  }
 }
