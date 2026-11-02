@@ -123,7 +123,9 @@ public class BookingServiceImpl implements BookingService {
             Booking b = t.getBooking();
             if (b == null) continue;
             String bStatus = b.getStatus() != null ? b.getStatus().toLowerCase() : "";
-            if ("paid".equals(bStatus) || "completed".equals(bStatus)) {
+            String payStatus = b.getPaymentStatus() != null ? b.getPaymentStatus().toLowerCase() : "";
+            boolean isBooked = "paid".equals(payStatus) || "confirmed".equals(bStatus) || "paid".equals(bStatus) || "completed".equals(bStatus);
+            if (isBooked) {
                 lockedSeatIds.add(t.getSeat().getId());
             } else if ("pending".equals(bStatus)) {
                 if (b.getHoldExpiresAt() == null || b.getHoldExpiresAt().isAfter(now)) {

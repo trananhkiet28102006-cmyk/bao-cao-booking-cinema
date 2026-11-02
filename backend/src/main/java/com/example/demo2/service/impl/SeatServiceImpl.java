@@ -169,7 +169,9 @@ public class SeatServiceImpl implements SeatService {
             if (b == null) continue;
             String bStatus = b.getStatus() != null ? b.getStatus().toLowerCase() : "";
 
-            if ("paid".equals(bStatus) || "completed".equals(bStatus)) {
+            String payStatus = b.getPaymentStatus() != null ? b.getPaymentStatus().toLowerCase() : "";
+            boolean isBooked = "paid".equals(payStatus) || "confirmed".equals(bStatus) || "paid".equals(bStatus) || "completed".equals(bStatus);
+            if (isBooked) {
                 seatStatusMap.put(t.getSeat().getId(), "BOOKED");
             } else if ("pending".equals(bStatus)) {
                 // Kiểm tra ghế đang trong thời gian giữ chỗ 5 phút (so sánh trực tiếp trong Java memory tránh lệch múi giờ DB)
