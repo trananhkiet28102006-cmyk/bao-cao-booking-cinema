@@ -143,12 +143,24 @@ public class CouponServiceImpl implements CouponService {
             resolvedUserId = SecurityUtils.findCurrentUser().map(CustomUserDetails::getId).orElse(null);
         }
 
-        if (resolvedUserId != null && coupon.getPerUserLimit() != null) {
-            long userUsed = bookingRepository.countByUserIdAndCouponIdAndStatusNot(
-                    resolvedUserId, coupon.getId(), "cancelled");
-            if (userUsed >= coupon.getPerUserLimit()) {
-                throw new BadRequestException("Bạn đã sử dụng hết số lượt cho phép của mã '" + code + "' (" + coupon.getPerUserLimit() + " lần/người)");
-            }
+        if (resolvedUserId == null) {
+            throw new BadRequestException("Vui lòng đăng nhập tài khoản CineClub để áp dụng mã giảm giá này!");
+        }
+
+        // Kiểm tra xem người dùng đã đổi mã này bằng điểm thưởng chưa
+        long userRedeemed = loyaltyTransactionRepository.countRedeemedByUserAndCode(resolvedUserId, coupon.getCode());
+        if (userRedeemed <= 0) {
+            throw new BadRequestException("Bạn chưa đổi mã '" + code + "' bằng điểm thưởng CineClub. Vui lòng vào Kho Ưu Đãi để đổi mã trước khi sử dụng!");
+        }
+
+        long userUsed = bookingRepository.countByUserIdAndCouponIdAndStatusNot(
+                resolvedUserId, coupon.getId(), "cancelled");
+        if (userUsed >= userRedeemed) {
+            throw new BadRequestException("Bạn đã sử dụng hết " + userRedeemed + " lượt đã đổi của mã '" + code + "'. Hãy đổi thêm mã tại Kho Ưu Đãi nhé!");
+        }
+
+        if (coupon.getPerUserLimit() != null && userUsed >= coupon.getPerUserLimit()) {
+            throw new BadRequestException("Bạn đã sử dụng hết số lượt cho phép của mã '" + code + "' (" + coupon.getPerUserLimit() + " lần/người)");
         }
 
         BigDecimal discountAmount;

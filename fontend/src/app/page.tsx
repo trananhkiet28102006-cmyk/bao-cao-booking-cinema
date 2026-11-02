@@ -3041,6 +3041,7 @@ export default function HomePage() {
                   const isRedeeming = isRedeemingId === cp.id;
                   const userLimit = cp.perUserLimit || 1;
                   const myRedeemed = userCouponRedeemCounts[cp.code] || 0;
+                  const hasRedeemed = !!userProfile && myRedeemed > 0;
                   const isUserLimitReached = !!userProfile && myRedeemed >= userLimit;
                   const usedPercent = Math.min(100, Math.round(((cp.usedCount || 0) / (cp.usageLimit || 100)) * 100));
 
@@ -3061,8 +3062,15 @@ export default function HomePage() {
                         </div>
 
                         <div>
-                          <h3 className="theme-text-main text-lg font-extrabold tracking-wide">
-                            Mã ưu đãi: {cp.code}
+                          <h3 className="theme-text-main text-lg font-extrabold tracking-wide flex items-center gap-2">
+                            <span>Mã ưu đãi:</span>
+                            {hasRedeemed ? (
+                              <span className="text-[#693BFF] font-mono tracking-wider">{cp.code}</span>
+                            ) : (
+                              <span className="text-slate-400 font-mono tracking-widest bg-slate-800/40 px-2 py-0.5 rounded border border-white/5">
+                                ••••••••
+                              </span>
+                            )}
                           </h3>
                           <p className="theme-text-muted text-xs leading-relaxed mt-1">
                             {cp.description}
@@ -3126,32 +3134,52 @@ export default function HomePage() {
                       </div>
 
                       <div className="pt-3 border-t border-[#172A48]/50 flex flex-col gap-2.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <code className="px-3 py-1.5 rounded-lg bg-[#693BFF]/15 text-[#693BFF] font-mono text-xs font-extrabold select-all">
-                            {cp.code}
-                          </code>
-                          <button
-                            onClick={() => {
-                              navigator.clipboard?.writeText(cp.code);
-                              setCopiedCode(cp.code);
-                              setTimeout(() => setCopiedCode(null), 2000);
-                            }}
-                            className="btn-press px-3 py-1.5 rounded-lg bg-[#172A48] hover:bg-[#203a63] theme-text-main text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
-                            title="Sao chép mã vào bộ nhớ tạm"
-                          >
-                            {copiedCode === cp.code ? (
-                              <>
-                                <Check size={13} className="text-emerald-400" />
-                                <span className="text-emerald-400 font-bold">Đã chép</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy size={13} />
-                                <span>Sao chép</span>
-                              </>
-                            )}
-                          </button>
-                        </div>
+                        {hasRedeemed ? (
+                          <div className="flex items-center justify-between gap-2">
+                            <code className="px-3 py-1.5 rounded-lg bg-[#693BFF]/15 text-[#693BFF] font-mono text-xs font-extrabold select-all">
+                              {cp.code}
+                            </code>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard?.writeText(cp.code);
+                                setCopiedCode(cp.code);
+                                setTimeout(() => setCopiedCode(null), 2000);
+                              }}
+                              className="btn-press px-3 py-1.5 rounded-lg bg-[#172A48] hover:bg-[#203a63] theme-text-main text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                              title="Sao chép mã vào bộ nhớ tạm"
+                            >
+                              {copiedCode === cp.code ? (
+                                <>
+                                  <Check size={13} className="text-emerald-400" />
+                                  <span className="text-emerald-400 font-bold">Đã chép</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy size={13} />
+                                  <span>Sao chép</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#0A1830] border border-[#172A48] text-xs font-mono text-slate-400 flex-1">
+                              <Lock size={12} className="text-amber-400/90" />
+                              <span className="tracking-widest">••••••••</span>
+                              <span className="text-[10px] font-sans text-[#8EA2C6] ml-auto">
+                                Đổi điểm để mở khóa mã
+                              </span>
+                            </div>
+                            <button
+                              disabled
+                              className="px-3 py-1.5 rounded-lg bg-[#0F1E33] text-slate-500 text-xs font-semibold flex items-center gap-1.5 cursor-not-allowed border border-white/5 opacity-60"
+                              title="Bạn cần đổi điểm để nhận mã ưu đãi này"
+                            >
+                              <Lock size={12} />
+                              <span>Chưa đổi</span>
+                            </button>
+                          </div>
+                        )}
 
                         {/* NÚT ĐỔI ĐIỂM THƯỞNG LẤY MÃ */}
                         <button

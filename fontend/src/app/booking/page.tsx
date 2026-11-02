@@ -80,9 +80,41 @@ export default function BookingPage() {
   const [userBookings, setUserBookings] = useState<BackendBookingResponse[]>([]);
 
   // Coupon state connected to POST /api/v1/coupons/apply
-  const [couponInput, setCouponInput] = useState<string>('CINEMA20');
+  const [couponInput, setCouponInput] = useState<string>('');
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [couponMessage, setCouponMessage] = useState<string>('');
+  const [loyaltyTransactions, setLoyaltyTransactions] = useState<any[]>([]);
+
+  // Danh sách các mã coupon mà user này ĐÃ ĐỔI THÀNH CÔNG bằng điểm thưởng
+  const userRedeemedCoupons = useMemo(() => {
+    if (!userProfile?.id) return [];
+    const set = new Set<string>();
+
+    // 1. Đọc từ LocalStorage theo userId
+    try {
+      const stored = localStorage.getItem(`cinebooking_redeemed_${userProfile.id}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        for (const [code, count] of Object.entries(parsed)) {
+          if (Number(count) > 0) set.add(code.toUpperCase());
+        }
+      }
+    } catch {}
+
+    // 2. Đọc từ lịch sử giao dịch đổi điểm trong CSDL
+    if (loyaltyTransactions.length) {
+      for (const tx of loyaltyTransactions) {
+        if (tx.type === 'REDEEM_COUPON' || (tx.description && tx.description.includes('Đổi điểm'))) {
+          const desc = (tx.description || '').toUpperCase();
+          for (const c of ['CINEMA20', 'WELCOME30K', 'VIP50K']) {
+            if (desc.includes(c)) set.add(c);
+          }
+        }
+      }
+    }
+
+    return Array.from(set);
+  }, [userProfile?.id, loyaltyTransactions]);
 
   // Booking & ZaloPay QR Payment transaction state
   const [createdBooking, setCreatedBooking] = useState<BackendBookingResponse | null>(null);
@@ -188,15 +220,19 @@ export default function BookingPage() {
 
         if (auth?.user) {
           setUserProfile(auth.user);
-          const [bookings, notifs, unreadRes] = await Promise.all([
+          const [bookings, notifs, unreadRes, loyaltySum] = await Promise.all([
             cineBookingApi.getUserBookings(auth.user.id).catch(() => []),
             cineBookingApi.getMyNotifications().catch(() => []),
             cineBookingApi.getUnreadNotificationCount().catch(() => ({ unreadCount: 0 })),
+            cineBookingApi.getMyLoyaltySummary().catch(() => null),
           ]);
           if (mounted) {
             if (bookings) setUserBookings(bookings);
             setNotifications(notifs || []);
             setUnreadNotifCount(unreadRes?.unreadCount || 0);
+            if (loyaltySum?.recentTransactions) {
+              setLoyaltyTransactions(loyaltySum.recentTransactions);
+            }
           }
         }
 
@@ -1670,23 +1706,42 @@ export default function BookingPage() {
                 </div>
 
                 {/* Gợi ý mã */}
-                <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                  <span className={`text-[10.5px] ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Gợi ý mã:</span>
-                  {['CINEMA20', 'WELCOME30K', 'VIP50K'].map((code) => (
-                    <button
-                      key={code}
-                      onClick={() => setCouponInput(code)}
-                      className={`px-2 py-0.5 rounded-md border text-[10.5px] font-bold cursor-pointer transition-colors ${
-                        couponInput === code
-                          ? 'bg-[#693BFF] border-[#693BFF] text-white'
-                          : isDarkMode
-                          ? 'bg-[#0B1A33] border-[#1E365F] text-[#93C5FD] hover:bg-[#12284D]'
-                          : 'bg-white border-slate-200 text-[#693BFF] hover:bg-slate-100'
-                      }`}
-                    >
-                      {code}
-                    </button>
-                  ))}
+                <div className="space-y-1.5 pt-1">
+                  {userRedeemedCoupons.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className={`text-[10.5px] font-bold flex items-center gap-1 ${isDarkMode ? 'text-amber-400' : 'text-[#693BFF]'}`}>
+                        <Sparkles size={11} /> Mã bạn đã đổi ({userRedeemedCoupons.length}):
+                      </span>
+                      {userRedeemedCoupons.map((code) => (
+                        <button
+                          key={code}
+                          type="button"
+                          onClick={() => setCouponInput(code)}
+                          className={`btn-press px-2.5 py-1 rounded-lg border text-xs font-mono font-bold cursor-pointer transition-colors ${
+                            couponInput === code
+                              ? 'bg-[#693BFF] border-[#693BFF] text-white shadow-md'
+                              : isDarkMode
+                              ? 'bg-[#0B1A33] border-[#1E365F] text-[#93C5FD] hover:bg-[#12284D]'
+                              : 'bg-white border-slate-200 text-[#693BFF] hover:bg-slate-100'
+                          }`}
+                        >
+                          {code}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className={`p-2.5 rounded-xl border text-[11px] flex items-center justify-between ${
+                      isDarkMode ? 'bg-[#0B1A33]/70 border-[#1E365F] text-[#8EA2C6]' : 'bg-slate-100 border-slate-200 text-slate-600'
+                    }`}>
+                      <span className="flex items-center gap-1.5">
+                        <Lock size={12} className="text-amber-400" />
+                        Chưa có mã ưu đãi. Hãy đổi điểm tại Kho Ưu Đãi!
+                      </span>
+                      <a href="/#promos" className="text-[#A875FF] hover:underline font-bold text-[10.5px]">
+                        Đổi mã ngay →
+                      </a>
+                    </div>
+                  )}
                 </div>
 
                 {couponMessage && (
@@ -1866,14 +1921,47 @@ export default function BookingPage() {
                       type="text"
                       value={couponInput}
                       onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                      placeholder="Nhập mã (VD: CINEMA20, WELCOME30K, VIP50K)"
-                      className="w-full px-3 py-1.5 rounded-lg bg-[#0A1830] border border-[#1E365F] text-xs font-bold text-white"
+                      placeholder="Nhập mã ưu đãi của bạn"
+                      className="w-full px-3 py-1.5 rounded-lg bg-[#0A1830] border border-[#1E365F] text-xs font-bold text-white placeholder-slate-500"
                     />
                   </div>
                   <span className="font-bold text-emerald-400 whitespace-nowrap">
                     -{formatCurrency(discountAmount)}
                   </span>
                 </div>
+
+                {/* Danh sách mã bạn đã đổi */}
+                {userRedeemedCoupons.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    <span className="text-[10.5px] text-amber-400 font-bold flex items-center gap-1">
+                      <Sparkles size={11} /> Mã bạn đã đổi:
+                    </span>
+                    {userRedeemedCoupons.map((code) => (
+                      <button
+                        key={code}
+                        type="button"
+                        onClick={() => setCouponInput(code)}
+                        className={`btn-press px-2 py-0.5 rounded-md border text-[10.5px] font-mono font-bold cursor-pointer transition-colors ${
+                          couponInput === code
+                            ? 'bg-[#693BFF] border-[#693BFF] text-white shadow-sm'
+                            : 'bg-[#0B1A33] border-[#1E365F] text-[#93C5FD] hover:bg-[#12284D]'
+                        }`}
+                      >
+                        {code}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-[10.5px] text-slate-400 flex items-center justify-between">
+                    <span className="flex items-center gap-1">
+                      <Lock size={10} className="text-amber-400" />
+                      Chưa đổi mã ưu đãi nào.
+                    </span>
+                    <a href="/#promos" className="text-[#A875FF] hover:underline font-bold">
+                      Đổi mã tại Kho Ưu Đãi →
+                    </a>
+                  </div>
+                )}
                 {couponMessage && (
                   <div className="text-[11px] text-[#93C5FD]">{couponMessage}</div>
                 )}
