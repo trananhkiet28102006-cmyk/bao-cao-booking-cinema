@@ -3,6 +3,8 @@ package com.example.demo2.service.impl;
 import com.example.demo2.dto.seat.*;
 import com.example.demo2.entity.CinemaRoom;
 import com.example.demo2.entity.Seat;
+import com.example.demo2.entity.Ticket;
+import com.example.demo2.entity.Booking;
 import com.example.demo2.entity.Showtime;
 import com.example.demo2.exception.BadRequestException;
 import com.example.demo2.exception.DuplicateResourceException;
@@ -17,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -156,10 +159,28 @@ public class SeatServiceImpl implements SeatService {
 
         CinemaRoom room = showtime.getCinemaRoom();
         List<Seat> seats = seatRepository.findByCinemaRoomIdOrderByRowIndexAscColIndexAsc(room.getId());
-        Set<Long> bookedSeatIds = ticketRepository.findBookedSeatIdsByShowtimeId(showtimeId);
+
+        List<Ticket> activeTickets = ticketRepository.findActiveTicketsByShowtimeId(showtimeId);
+        LocalDateTime now = LocalDateTime.now();
+        Map<Long, String> seatStatusMap = new HashMap<>();
+
+        for (Ticket t : activeTickets) {
+            Booking b = t.getBooking();
+            if (b == null) continue;
+            String bStatus = b.getStatus() != null ? b.getStatus().toLowerCase() : "";
+
+            if ("paid".equals(bStatus) || "completed".equals(bStatus)) {
+                seatStatusMap.put(t.getSeat().getId(), "BOOKED");
+            } else if ("pending".equals(bStatus)) {
+                // Kiểm tra ghế đang trong thời gian giữ chỗ 5 phút (so sánh trực tiếp trong Java memory tránh lệch múi giờ DB)
+                if (b.getHoldExpiresAt() == null || b.getHoldExpiresAt().isAfter(now)) {
+                    seatStatusMap.put(t.getSeat().getId(), "HOLD");
+                }
+            }
+        }
 
         List<SeatStatusDTO> seatStatusList = seats.stream().map(s -> {
-            boolean isBooked = bookedSeatIds.contains(s.getId());
+            String seatStatus = seatStatusMap.getOrDefault(s.getId(), "AVAILABLE");
             char rowChar = (char) ('A' + (s.getRowIndex() != null ? s.getRowIndex() - 1 : 0));
             return SeatStatusDTO.builder()
                     .seatId(s.getId())
@@ -168,12 +189,12 @@ public class SeatServiceImpl implements SeatService {
                     .rowIndex(s.getRowIndex())
                     .colIndex(s.getColIndex())
                     .seatType(s.getSeatType())
-                    .status(isBooked ? "BOOKED" : "AVAILABLE")
+                    .status(seatStatus)
                     .build();
         }).collect(Collectors.toList());
 
         int total = seatStatusList.size();
-        int booked = (int) seatStatusList.stream().filter(s -> "BOOKED".equals(s.getStatus())).count();
+        int booked = (int) seatStatusList.stream().filter(s -> !"AVAILABLE".equals(s.getStatus())).count();
         int available = total - booked;
 
         return SeatLayoutDTO.builder()

@@ -197,10 +197,16 @@ export default function SeatMap2D({
               className={`font-bold ${
                 hoveredSeat.status === 'BOOKED'
                   ? 'text-rose-400'
+                  : hoveredSeat.status === 'HOLD'
+                  ? 'text-amber-400'
                   : 'text-emerald-400'
               }`}
             >
-              {hoveredSeat.status === 'BOOKED' ? 'Đã bán' : 'Còn trống'}
+              {hoveredSeat.status === 'BOOKED'
+                ? 'Đã bán'
+                : hoveredSeat.status === 'HOLD'
+                ? 'Đang giữ chỗ (5p)'
+                : 'Còn trống'}
             </span>
           </div>
         ) : (

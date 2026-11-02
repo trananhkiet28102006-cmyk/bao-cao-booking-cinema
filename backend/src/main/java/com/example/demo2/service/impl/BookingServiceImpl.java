@@ -116,16 +116,31 @@ public class BookingServiceImpl implements BookingService {
         }
 
         // 5. Kiểm tra chống đặt trùng ghế đã bán hoặc đang được giữ chỗ (trong hạn 5 phút)
-        Set<Long> bookedSeatIds = ticketRepository.findBookedSeatIdsByShowtimeId(showtime.getId());
+        LocalDateTime now = LocalDateTime.now();
+        List<Ticket> activeTickets = ticketRepository.findActiveTicketsByShowtimeId(showtime.getId());
+        Set<Long> lockedSeatIds = new HashSet<>();
+        for (Ticket t : activeTickets) {
+            Booking b = t.getBooking();
+            if (b == null) continue;
+            String bStatus = b.getStatus() != null ? b.getStatus().toLowerCase() : "";
+            if ("paid".equals(bStatus) || "completed".equals(bStatus)) {
+                lockedSeatIds.add(t.getSeat().getId());
+            } else if ("pending".equals(bStatus)) {
+                if (b.getHoldExpiresAt() == null || b.getHoldExpiresAt().isAfter(now)) {
+                    lockedSeatIds.add(t.getSeat().getId());
+                }
+            }
+        }
+
         List<String> conflictSeats = selectedSeats.stream()
-                .filter(s -> bookedSeatIds.contains(s.getId()))
+                .filter(s -> lockedSeatIds.contains(s.getId()))
                 .map(Seat::getSeatNumber)
                 .collect(Collectors.toList());
 
         if (!conflictSeats.isEmpty()) {
-            throw new BadRequestException("Không thể đặt vé! Các ghế sau tại phòng '" + showtimeRoom.getName()
-                    + "' (Rạp: " + (showtimeCinema != null ? showtimeCinema.getName() : "")
-                    + ") đã có người đặt hoặc đang trong thời gian giữ chỗ (5 phút): " + String.join(", ", conflictSeats));
+            throw new BadRequestException("Không thể đặt vé! Các ghế sau: "
+                    + String.join(", ", conflictSeats)
+                    + " đã có người đặt hoặc đang trong thời gian giữ chỗ (5 phút)!");
         }
 
         // 6. Tính giá vé động cho từng ghế thông qua TicketPriceRuleService

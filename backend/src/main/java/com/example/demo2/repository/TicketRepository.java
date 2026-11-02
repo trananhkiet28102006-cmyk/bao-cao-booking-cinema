@@ -20,6 +20,9 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
 
     Optional<Ticket> findByTicketCode(String ticketCode);
 
+    @Query("SELECT t FROM Ticket t WHERE t.showtime.id = :showtimeId AND (t.booking IS NULL OR t.booking.status != 'cancelled')")
+    List<Ticket> findActiveTicketsByShowtimeId(@Param("showtimeId") Long showtimeId);
+
     @Query("SELECT t.seat.id FROM Ticket t WHERE t.showtime.id = :showtimeId " +
            "AND (t.booking IS NULL OR (" +
            "  t.booking.status != 'cancelled' AND (" +
