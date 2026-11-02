@@ -3991,42 +3991,65 @@ export default function HomePage() {
                 </ul>
               </div>
 
-              {/* Cột 4: Đối Tác Thanh Toán & Ứng Dụng */}
+              {/* Cột 4: Mạng Xã Hội & Kênh Truyền Thông */}
               <div className="space-y-3.5">
                 <h4 className={`text-xs font-black uppercase tracking-wider ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-                  Đối Tác & Thanh Toán
+                  Kết Nối Với Chúng Tôi
                 </h4>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className={`p-2 rounded-lg border text-center text-[10px] font-bold ${
-                    isDarkMode ? 'bg-[#08152B] border-[#172A48] text-[#93C5FD]' : 'bg-white border-slate-200 text-blue-600'
-                  }`}>
-                    ZaloPay
-                  </div>
-                  <div className={`p-2 rounded-lg border text-center text-[10px] font-bold ${
-                    isDarkMode ? 'bg-[#08152B] border-[#172A48] text-pink-400' : 'bg-white border-slate-200 text-pink-600'
-                  }`}>
-                    MoMo
-                  </div>
-                  <div className={`p-2 rounded-lg border text-center text-[10px] font-bold ${
-                    isDarkMode ? 'bg-[#08152B] border-[#172A48] text-emerald-400' : 'bg-white border-slate-200 text-emerald-600'
-                  }`}>
-                    VNPay
-                  </div>
-                  <div className={`p-2 rounded-lg border text-center text-[10px] font-bold ${
-                    isDarkMode ? 'bg-[#08152B] border-[#172A48] text-amber-300' : 'bg-white border-slate-200 text-amber-700'
-                  }`}>
-                    VISA
-                  </div>
-                  <div className={`p-2 rounded-lg border text-center text-[10px] font-bold ${
-                    isDarkMode ? 'bg-[#08152B] border-[#172A48] text-rose-400' : 'bg-white border-slate-200 text-rose-600'
-                  }`}>
-                    MasterCard
-                  </div>
-                  <div className={`p-2 rounded-lg border text-center text-[10px] font-bold ${
-                    isDarkMode ? 'bg-[#08152B] border-[#172A48] text-purple-300' : 'bg-white border-slate-200 text-purple-700'
-                  }`}>
-                    Napas
-                  </div>
+                <div className="grid grid-cols-3 gap-2.5">
+                  {/* Facebook */}
+                  <a
+                    href="https://facebook.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`py-2.5 px-2 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all hover:scale-105 cursor-pointer group ${
+                      isDarkMode
+                        ? 'bg-[#08152B] border-[#172A48] hover:border-[#1877F2]/70 hover:bg-[#1877F2]/10 text-white'
+                        : 'bg-white border-slate-200 hover:border-[#1877F2] hover:bg-blue-50/60 text-slate-800'
+                    }`}
+                    title="Theo dõi Fanpage CineBooking trên Facebook"
+                  >
+                    <svg className="w-6 h-6 text-[#1877F2] group-hover:scale-110 transition-transform" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                    </svg>
+                    <span className="text-[11px] font-bold">Facebook</span>
+                  </a>
+
+                  {/* TikTok */}
+                  <a
+                    href="https://tiktok.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`py-2.5 px-2 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all hover:scale-105 cursor-pointer group ${
+                      isDarkMode
+                        ? 'bg-[#08152B] border-[#172A48] hover:border-pink-500/70 hover:bg-pink-500/10 text-white'
+                        : 'bg-white border-slate-200 hover:border-black hover:bg-slate-50 text-slate-800'
+                    }`}
+                    title="Kênh TikTok chính thức CineBooking"
+                  >
+                    <svg className="w-6 h-6 text-white group-hover:scale-110 transition-transform" style={{ filter: isDarkMode ? 'drop-shadow(-1.5px -1.5px 0 #00F2FE) drop-shadow(1.5px 1.5px 0 #FE2C55)' : 'none', color: isDarkMode ? '#FFFFFF' : '#000000' }} viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.24 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+                    </svg>
+                    <span className="text-[11px] font-bold">TikTok</span>
+                  </a>
+
+                  {/* YouTube */}
+                  <a
+                    href="https://youtube.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`py-2.5 px-2 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all hover:scale-105 cursor-pointer group ${
+                      isDarkMode
+                        ? 'bg-[#08152B] border-[#172A48] hover:border-[#FF0000]/70 hover:bg-[#FF0000]/10 text-white'
+                        : 'bg-white border-slate-200 hover:border-[#FF0000] hover:bg-rose-50/60 text-slate-800'
+                    }`}
+                    title="Kênh YouTube Trailer & Hậu Trường CineBooking"
+                  >
+                    <svg className="w-6 h-6 text-[#FF0000] group-hover:scale-110 transition-transform" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                    </svg>
+                    <span className="text-[11px] font-bold">YouTube</span>
+                  </a>
                 </div>
 
                 <div className="pt-2">
