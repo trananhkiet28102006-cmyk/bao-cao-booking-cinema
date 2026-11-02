@@ -57,6 +57,7 @@ import {
   Loader2,
   Upload,
   Image as ImageIcon,
+  Pencil,
 } from 'lucide-react';
 import {
   cineBookingApi,
@@ -141,14 +142,31 @@ export default function AdminPortalPage() {
   const [hoveredChartDay, setHoveredChartDay] = useState<number | null>(null);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
   const [chartType, setChartType] = useState<'area' | 'bar'>('area');
+  const [hoveredFormat, setHoveredFormat] = useState<string | null>(null);
   const [chartsRowRef, isChartsRowVisible] = useInView({ threshold: 0.12 });
 
   // Modals & Action States
   const [showAddMovieModal, setShowAddMovieModal] = useState(false);
+  const [showEditMovieModal, setShowEditMovieModal] = useState(false);
+  const [editingMovieId, setEditingMovieId] = useState<number | null>(null);
   const [showAddShowtimeModal, setShowAddShowtimeModal] = useState(false);
   const [showAddCouponModal, setShowAddCouponModal] = useState(false);
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
   const [actionErrorMsg, setActionErrorMsg] = useState<string | null>(null);
+
+  // Form Chỉnh Sửa Phim
+  const [editMovieForm, setEditMovieForm] = useState({
+    title: '',
+    description: '',
+    durationMinutes: 120,
+    ageRating: 'C16',
+    language: 'Tiếng Anh - Phụ đề Việt',
+    trailerUrl: '',
+    posterUrl: '',
+    status: 'now_showing',
+    director: '',
+    genreIds: [1, 5],
+  });
 
   // QR Check-in Box State
   const [checkinCode, setCheckinCode] = useState('');
@@ -458,10 +476,10 @@ export default function AdminPortalPage() {
     const maxDayTotal = 2000000; // 2.0M clean ceiling for chart Y-axis
 
     const formatStats = [
-      { name: 'IMAX Laser 3D', percent: 38, count: 18, color: 'from-[#693BFF] to-[#8057FF]' },
-      { name: '2D Digital Phụ Đề', percent: 42, count: 20, color: 'from-[#3B82F6] to-[#06B6D4]' },
-      { name: '2D Lồng Tiếng', percent: 14, count: 6, color: 'from-[#10B981] to-[#34D399]' },
-      { name: '4DX Vòm Dynamic', percent: 6, count: 2, color: 'from-[#F59E0B] to-[#F97316]' },
+      { name: 'IMAX Laser 3D', percent: 38, count: 18, color: 'from-[#693BFF] to-[#8057FF]', hex: '#8B5CF6' },
+      { name: '2D Digital Phụ Đề', percent: 42, count: 20, color: 'from-[#3B82F6] to-[#06B6D4]', hex: '#06B6D4' },
+      { name: '2D Lồng Tiếng', percent: 14, count: 6, color: 'from-[#10B981] to-[#34D399]', hex: '#10B981' },
+      { name: '4DX Vòm Dynamic', percent: 6, count: 2, color: 'from-[#F59E0B] to-[#F97316]', hex: '#F59E0B' },
     ];
 
     const peakHours = [
@@ -656,6 +674,44 @@ export default function AdminPortalPage() {
     }
   };
 
+  // Mở modal sửa / cập nhật phim
+  const handleOpenEditMovie = (movie: BackendMovie) => {
+    setEditingMovieId(movie.id);
+    setEditMovieForm({
+      title: movie.title,
+      description: movie.description || '',
+      durationMinutes: movie.durationMinutes || 120,
+      ageRating: movie.ageRating || 'C16',
+      language: movie.language || 'Tiếng Anh - Phụ đề Việt',
+      trailerUrl: movie.trailerUrl || '',
+      posterUrl: movie.posterUrl || '',
+      status: movie.status || 'now_showing',
+      director: movie.director || '',
+      genreIds: movie.genres && movie.genres.length > 0 ? movie.genres.map((g) => g.id) : [1],
+    });
+    setShowEditMovieModal(true);
+  };
+
+  // Lưu cập nhật phim
+  const handleUpdateMovie = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMovieId) return;
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      await cineBookingApi.updateMovieAdmin(editingMovieId, {
+        ...editMovieForm,
+        releaseDate: today,
+        endDate: '2026-12-31',
+      });
+      showBannerToast(`Đã cập nhật thông tin phim "${editMovieForm.title}" thành công!`);
+      setShowEditMovieModal(false);
+      setEditingMovieId(null);
+      loadAdminData();
+    } catch (err: any) {
+      showBannerToast(err?.message || 'Lỗi cập nhật phim', true);
+    }
+  };
+
   // Xóa phim
   const handleDeleteMovie = async (movieId: number, title: string) => {
     if (!confirm(`Bạn có chắc chắn muốn xóa phim "${title}"?`)) return;
@@ -794,6 +850,24 @@ export default function AdminPortalPage() {
       showBannerToast(err?.message || 'Lỗi tạo mã giảm giá', true);
     }
   };
+
+  // =========================================================================
+  // GIAO DIỆN 0: MÀN HÌNH CHỜ XÁC THỰC QUYỀN TRUY CẬP (LOADING GUARD)
+  // =========================================================================
+  if (isAuthorized === null) {
+    return (
+      <div
+        className={`min-h-screen flex items-center justify-center p-4 transition-colors font-sans ${
+          isDarkMode ? 'bg-[#030916] text-[#F4F7FF]' : 'bg-[#F1F5F9] text-[#0F172A]'
+        }`}
+      >
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-3 border-[#693BFF] border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs text-[#AAB8D0] font-semibold">Đang xác thực quyền Quản trị...</span>
+        </div>
+      </div>
+    );
+  }
 
   // =========================================================================
   // GIAO DIỆN 1: MÀN HÌNH ĐĂNG NHẬP ADMIN NẾU CHƯA CÓ QUYỀN (AUTH GUARD)
@@ -1407,7 +1481,7 @@ export default function AdminPortalPage() {
                           }`}
                         >
                           <Activity size={13} />
-                          <span>Miền Sóng (Spline)</span>
+                          <span>Miền Sóng</span>
                         </button>
                         <button
                           type="button"
@@ -1419,7 +1493,7 @@ export default function AdminPortalPage() {
                           }`}
                         >
                           <BarChart3 size={13} />
-                          <span>Cột Track (Pro Bars)</span>
+                          <span>Cột Track</span>
                         </button>
                       </div>
 
@@ -1821,36 +1895,143 @@ export default function AdminPortalPage() {
                       <span>Cơ Cấu Định Dạng Chiếu</span>
                     </h2>
 
-                    <div className="space-y-3.5">
-                      {dashboardStats.formatStats.map((fmt, idx) => (
-                        <div key={fmt.name} className="space-y-1.5">
-                          <div className="flex justify-between text-xs font-bold">
-                            <span className={isDarkMode ? 'text-white' : 'text-slate-800'}>{fmt.name}</span>
-                            <span className={isDarkMode ? 'text-[#AAB8D0]' : 'text-slate-500'}>
-                              {isChartsRowVisible ? (
-                                <>
-                                  <AnimatedNumber value={fmt.count} /> suất (
-                                  <AnimatedNumber value={fmt.percent} />%)
-                                </>
-                              ) : (
-                                '0 suất (0%)'
-                              )}
-                            </span>
-                          </div>
-                          <div className={`w-full h-2.5 rounded-full overflow-hidden ${
-                            isDarkMode ? 'bg-[#0A1830]' : 'bg-slate-200'
-                          }`}>
-                            <div
-                              style={{
-                                width: isChartsRowVisible ? `${fmt.percent}%` : '0%',
-                                transition: `width 1.1s cubic-bezier(0.16, 1, 0.3, 1) ${idx * 140 + 150}ms`,
-                              }}
-                              className={`h-full rounded-full bg-gradient-to-r ${fmt.color} shadow-sm`}
-                            />
+                    {/* Biểu đồ tròn Donut Cơ Cấu Định Dạng Chiếu */}
+                    {(() => {
+                      const r = 58;
+                      const circumference = 2 * Math.PI * r;
+                      const totalShowtimes = dashboardStats.formatStats.reduce((sum, f) => sum + f.count, 0);
+                      let accumulatedPercent = 0;
+                      const activeFmt = dashboardStats.formatStats.find((f) => f.name === hoveredFormat);
+
+                      return (
+                        <div className="space-y-4">
+                          <div className="flex flex-col sm:flex-row items-center justify-center gap-5">
+                            {/* SVG Donut Chart */}
+                            <div className="relative w-40 h-40 flex-shrink-0 flex items-center justify-center">
+                              <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 160 160">
+                                {/* Vòng tròn nền */}
+                                <circle
+                                  cx="80"
+                                  cy="80"
+                                  r={r}
+                                  stroke={isDarkMode ? '#0F213E' : '#F1F5F9'}
+                                  strokeWidth="18"
+                                  fill="none"
+                                />
+                                {dashboardStats.formatStats.map((fmt, idx) => {
+                                  const strokeLength = (fmt.percent / 100) * circumference;
+                                  const strokeGap = 3;
+                                  const dashOffset = -(accumulatedPercent / 100) * circumference;
+                                  accumulatedPercent += fmt.percent;
+                                  const isHovered = hoveredFormat === fmt.name;
+
+                                  return (
+                                    <circle
+                                      key={fmt.name}
+                                      cx="80"
+                                      cy="80"
+                                      r={r}
+                                      fill="none"
+                                      stroke={fmt.hex}
+                                      strokeWidth={isHovered ? 22 : 18}
+                                      strokeDasharray={`${isChartsRowVisible ? Math.max(0, strokeLength - strokeGap) : 0} ${circumference}`}
+                                      strokeDashoffset={dashOffset}
+                                      strokeLinecap="round"
+                                      className="cursor-pointer transition-all duration-300"
+                                      style={{
+                                        filter: isHovered ? `drop-shadow(0 0 8px ${fmt.hex})` : 'none',
+                                        transition: `stroke-dasharray 1.2s cubic-bezier(0.16, 1, 0.3, 1) ${idx * 150}ms, stroke-width 0.2s, filter 0.2s`,
+                                      }}
+                                      onMouseEnter={() => setHoveredFormat(fmt.name)}
+                                      onMouseLeave={() => setHoveredFormat(null)}
+                                    />
+                                  );
+                                })}
+                              </svg>
+
+                              {/* Thông số hiển thị ở tâm biểu đồ */}
+                              <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-2">
+                                {activeFmt ? (
+                                  <>
+                                    <span className="text-xl font-black transition-colors" style={{ color: activeFmt.hex }}>
+                                      {activeFmt.percent}%
+                                    </span>
+                                    <span className={`text-[10px] font-bold line-clamp-1 max-w-[85px] leading-tight ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
+                                      {activeFmt.name}
+                                    </span>
+                                    <span className={`text-[9px] font-medium ${isDarkMode ? 'text-[#8EA2C6]' : 'text-slate-500'}`}>
+                                      {activeFmt.count} suất
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className={`text-2xl font-black ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                                      {isChartsRowVisible ? <AnimatedNumber value={totalShowtimes} /> : '0'}
+                                    </span>
+                                    <span className={`text-[10px] font-semibold uppercase tracking-wider ${isDarkMode ? 'text-[#8EA2C6]' : 'text-slate-500'}`}>
+                                      Suất chiếu
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Danh sách chú thích (Legend) */}
+                            <div className="flex-1 w-full space-y-1.5">
+                              {dashboardStats.formatStats.map((fmt) => {
+                                const isHovered = hoveredFormat === fmt.name;
+                                return (
+                                  <div
+                                    key={fmt.name}
+                                    onMouseEnter={() => setHoveredFormat(fmt.name)}
+                                    onMouseLeave={() => setHoveredFormat(null)}
+                                    className={`flex items-center justify-between p-2 rounded-lg text-xs cursor-pointer transition-all ${
+                                      isHovered
+                                        ? isDarkMode
+                                          ? 'bg-[#0E2243] scale-[1.02]'
+                                          : 'bg-slate-100 scale-[1.02]'
+                                        : 'hover:bg-slate-50 dark:hover:bg-[#0A1A32]'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span
+                                        className="w-2.5 h-2.5 rounded-full flex-shrink-0 transition-transform"
+                                        style={{
+                                          backgroundColor: fmt.hex,
+                                          transform: isHovered ? 'scale(1.3)' : 'scale(1)',
+                                          boxShadow: isHovered ? `0 0 6px ${fmt.hex}` : 'none',
+                                        }}
+                                      />
+                                      <span className={`font-semibold truncate text-[11px] ${
+                                        isHovered
+                                          ? isDarkMode ? 'text-white font-bold' : 'text-slate-900 font-bold'
+                                          : isDarkMode ? 'text-[#C5D3E8]' : 'text-slate-700'
+                                      }`}>
+                                        {fmt.name}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                                      <span className={`text-[11px] font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                                        {fmt.count} suất
+                                      </span>
+                                      <span
+                                        className="text-[10px] px-1.5 py-0.5 rounded font-black"
+                                        style={{
+                                          backgroundColor: `${fmt.hex}20`,
+                                          color: fmt.hex,
+                                        }}
+                                      >
+                                        {fmt.percent}%
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
-                      ))}
-                    </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Khung giờ cao điểm */}
@@ -2417,13 +2598,22 @@ export default function AdminPortalPage() {
                               </span>
                             </td>
                             <td className="py-3 px-4 text-right">
-                              <button
-                                onClick={() => handleDeleteMovie(movie.id, movie.title)}
-                                title="Xóa phim khỏi database"
-                                className="p-2 rounded-lg bg-rose-500/15 text-rose-400 hover:bg-rose-500 hover:text-white transition-all cursor-pointer"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => handleOpenEditMovie(movie)}
+                                  title="Cập nhật thông tin phim"
+                                  className="p-2 rounded-lg bg-blue-500/15 text-blue-400 hover:bg-blue-500 hover:text-white transition-all cursor-pointer"
+                                >
+                                  <Pencil size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteMovie(movie.id, movie.title)}
+                                  title="Xóa phim khỏi database"
+                                  className="p-2 rounded-lg bg-rose-500/15 text-rose-400 hover:bg-rose-500 hover:text-white transition-all cursor-pointer"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -3311,6 +3501,189 @@ export default function AdminPortalPage() {
                   className="py-2.5 rounded-xl bg-[#693BFF] hover:bg-[#8057FF] text-xs font-extrabold text-white cursor-pointer shadow-md"
                 >
                   Lưu Phim Vào Database
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          MODAL: CẬP NHẬT / CHỈNH SỬA THÔNG TIN PHIM
+         ===================================================================== */}
+      {showEditMovieModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
+          onClick={() => setShowEditMovieModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className={`w-full max-w-xl rounded-3xl p-6 space-y-4 shadow-2xl m-pop-in border max-h-[90vh] overflow-y-auto ${
+              isDarkMode ? 'bg-[#061123] border-[#243E6C]' : 'bg-white border-slate-200'
+            }`}
+          >
+            <div className={`flex items-center justify-between border-b pb-3 ${
+              isDarkMode ? 'border-[#162949]' : 'border-slate-200'
+            }`}>
+              <h3 className={`text-base font-extrabold flex items-center gap-2 ${
+                isDarkMode ? 'text-white' : 'text-slate-900'
+              }`}>
+                <Pencil size={18} className="text-blue-400" />
+                <span>Cập Nhật Thông Tin Phim #{editingMovieId}</span>
+              </h3>
+              <button
+                onClick={() => setShowEditMovieModal(false)}
+                className={`w-8 h-8 rounded-full flex items-center justify-center cursor-pointer ${
+                  isDarkMode ? 'bg-[#0B1B35] text-[#94A3B8] hover:text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateMovie} className="space-y-3">
+              <div className="space-y-1">
+                <label className={`text-xs font-bold ${isDarkMode ? 'text-[#AAB8D0]' : 'text-slate-700'}`}>Tên bộ phim</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="VD: Deadpool & Wolverine"
+                  value={editMovieForm.title}
+                  onChange={(e) => setEditMovieForm({ ...editMovieForm, title: e.target.value })}
+                  className={`w-full px-3 py-2 rounded-xl border text-xs font-bold focus:outline-none focus:border-[#693BFF] ${
+                    isDarkMode ? 'bg-[#0A1830] border-[#1E365F] text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                  }`}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className={`text-xs font-bold ${isDarkMode ? 'text-[#AAB8D0]' : 'text-slate-700'}`}>Đạo diễn</label>
+                  <input
+                    type="text"
+                    required
+                    value={editMovieForm.director}
+                    onChange={(e) => setEditMovieForm({ ...editMovieForm, director: e.target.value })}
+                    className={`w-full px-3 py-2 rounded-xl border text-xs ${
+                      isDarkMode ? 'bg-[#0A1830] border-[#1E365F] text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                    }`}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className={`text-xs font-bold ${isDarkMode ? 'text-[#AAB8D0]' : 'text-slate-700'}`}>Thời lượng (Phút)</label>
+                  <input
+                    type="number"
+                    required
+                    min={30}
+                    max={300}
+                    value={editMovieForm.durationMinutes}
+                    onChange={(e) => setEditMovieForm({ ...editMovieForm, durationMinutes: Number(e.target.value) })}
+                    className={`w-full px-3 py-2 rounded-xl border text-xs ${
+                      isDarkMode ? 'bg-[#0A1830] border-[#1E365F] text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className={`text-xs font-bold ${isDarkMode ? 'text-[#AAB8D0]' : 'text-slate-700'}`}>Độ tuổi kiểm duyệt</label>
+                  <select
+                    value={editMovieForm.ageRating}
+                    onChange={(e) => setEditMovieForm({ ...editMovieForm, ageRating: e.target.value })}
+                    className={`w-full px-3 py-2 rounded-xl border text-xs cursor-pointer ${
+                      isDarkMode ? 'bg-[#0A1830] border-[#1E365F] text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                    }`}
+                  >
+                    <option value="P">P - Phổ biến mọi lứa tuổi</option>
+                    <option value="K">K - Dưới 13 tuổi có người lớn</option>
+                    <option value="C13">C13 - Dành cho khán giả từ 13 tuổi</option>
+                    <option value="C16">C16 - Dành cho khán giả từ 16 tuổi</option>
+                    <option value="C18">C18 - Dành cho khán giả từ 18 tuổi</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className={`text-xs font-bold ${isDarkMode ? 'text-[#AAB8D0]' : 'text-slate-700'}`}>Trạng thái chiếu</label>
+                  <select
+                    value={editMovieForm.status}
+                    onChange={(e) => setEditMovieForm({ ...editMovieForm, status: e.target.value as any })}
+                    className={`w-full px-3 py-2 rounded-xl border text-xs cursor-pointer ${
+                      isDarkMode ? 'bg-[#0A1830] border-[#1E365F] text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                    }`}
+                  >
+                    <option value="now_showing">Đang chiếu tại rạp</option>
+                    <option value="coming_soon">Sắp khởi chiếu (Coming soon)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className={`text-xs font-bold ${isDarkMode ? 'text-[#AAB8D0]' : 'text-slate-700'}`}>Mô tả tóm tắt nội dung</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={editMovieForm.description}
+                  onChange={(e) => setEditMovieForm({ ...editMovieForm, description: e.target.value })}
+                  className={`w-full px-3 py-2 rounded-xl border text-xs ${
+                    isDarkMode ? 'bg-[#0A1830] border-[#1E365F] text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                  }`}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className={`text-xs font-bold ${isDarkMode ? 'text-[#AAB8D0]' : 'text-slate-700'}`}>URL Poster Phim</label>
+                <div className="flex gap-2 items-center">
+                  {editMovieForm.posterUrl && (
+                    <img
+                      src={editMovieForm.posterUrl}
+                      alt="Preview"
+                      className="w-10 h-14 rounded-lg object-cover border border-[#243E6C] flex-shrink-0 shadow-sm"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba';
+                      }}
+                    />
+                  )}
+                  <input
+                    type="text"
+                    required
+                    value={editMovieForm.posterUrl}
+                    onChange={(e) => setEditMovieForm({ ...editMovieForm, posterUrl: e.target.value })}
+                    className={`flex-1 px-3 py-2 rounded-xl border text-xs ${
+                      isDarkMode ? 'bg-[#0A1830] border-[#1E365F] text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className={`text-xs font-bold ${isDarkMode ? 'text-[#AAB8D0]' : 'text-slate-700'}`}>Link YouTube Trailer (URL)</label>
+                <input
+                  type="text"
+                  required
+                  value={editMovieForm.trailerUrl}
+                  onChange={(e) => setEditMovieForm({ ...editMovieForm, trailerUrl: e.target.value })}
+                  className={`w-full px-3 py-2 rounded-xl border text-xs ${
+                    isDarkMode ? 'bg-[#0A1830] border-[#1E365F] text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                  }`}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditMovieModal(false)}
+                  className={`py-2.5 rounded-xl text-xs font-bold cursor-pointer transition-colors ${
+                    isDarkMode ? 'bg-[#0A1830] hover:bg-[#102344] text-[#AAB8D0]' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  className="py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-extrabold text-white cursor-pointer shadow-md flex items-center justify-center gap-1.5"
+                >
+                  <Pencil size={13} />
+                  <span>Cập Nhật Thay Đổi</span>
                 </button>
               </div>
             </form>

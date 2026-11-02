@@ -3,6 +3,7 @@ package com.example.demo2.controller;
 import com.example.demo2.dto.ApiResponse;
 import com.example.demo2.dto.coupon.CouponApplyRequestDTO;
 import com.example.demo2.dto.coupon.CouponCalculationResponseDTO;
+import com.example.demo2.dto.coupon.CouponRedeemResponseDTO;
 import com.example.demo2.dto.coupon.CouponRequestDTO;
 import com.example.demo2.dto.coupon.CouponResponseDTO;
 import com.example.demo2.service.CouponService;
@@ -76,6 +77,13 @@ public class CouponController {
     public ResponseEntity<ApiResponse<CouponCalculationResponseDTO>> applyCoupon(
             @Valid @RequestBody CouponApplyRequestDTO dto) {
         CouponCalculationResponseDTO result = couponService.validateAndCalculateDiscount(dto);
+        return ResponseEntity.ok(ApiResponse.success(result, result.getMessage()));
+    }
+
+    @PostMapping("/{id}/redeem")
+    @Operation(summary = "Đổi điểm thưởng CineClub để lấy mã giảm giá")
+    public ResponseEntity<ApiResponse<CouponRedeemResponseDTO>> redeemCoupon(@PathVariable Long id) {
+        CouponRedeemResponseDTO result = couponService.redeemCouponWithPoints(id);
         return ResponseEntity.ok(ApiResponse.success(result, result.getMessage()));
     }
 }

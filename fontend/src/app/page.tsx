@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import gsap from 'gsap';
+import LuckyWheel from '@/components/LuckyWheel';
 import {
   Home,
   Film,
@@ -47,6 +48,8 @@ import {
   CreditCard,
   Award,
   ArrowUp,
+  AlertCircle,
+  Gift,
 } from 'lucide-react';
 import {
   cineBookingApi,
@@ -98,74 +101,41 @@ function formatShortDate(isoDate?: string) {
 
 function extractYoutubeId(url?: string): string | null {
   if (!url) return null;
-  const match = url.match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})/);
-  return match ? match[1] : null;
+  const match = url.match(/(?:v=|youtu\.be\/|embed\/|^)([A-Za-z0-9_-]{11})(?:[?&]|$)/);
+  if (match) return match[1];
+  const simpleMatch = url.match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})/);
+  return simpleMatch ? simpleMatch[1] : (url.length === 11 ? url : null);
 }
 
 function getMovieVisuals(movie: BackendMovie) {
-  const titleLower = movie.title.toLowerCase();
-  if (titleLower.includes('dune')) {
-    return {
-      poster: '/images/posters/dune2.jpg',
-      backdrop: '/images/backdrops/dune2_hero.jpg',
-      trailerThumb: '/images/backdrops/dune2_trailer.jpg',
-      youtubeId: 'Way9Dexny3w',
-    };
-  }
-  if (titleLower.includes('panda')) {
-    return {
-      poster: '/images/posters/kungfupanda4.jpg',
-      backdrop: '/images/backdrops/kungfupanda4_hero.jpg',
-      trailerThumb: 'https://img.youtube.com/vi/_inKs4eeHiI/hqdefault.jpg',
-      youtubeId: '_inKs4eeHiI',
-    };
-  }
-  if (titleLower.includes('mai')) {
-    return {
-      poster: `${movie.posterUrl}?auto=format&fit=crop&w=600&q=85`,
-      backdrop: `${movie.posterUrl}?auto=format&fit=crop&w=1600&q=85`,
-      trailerThumb: 'https://img.youtube.com/vi/EX6clvId19s/hqdefault.jpg',
-      youtubeId: 'EX6clvId19s',
-    };
-  }
+  // Lấy 100% YouTube ID từ trailer_url trong CSDL (tự động phân tích link YouTube hoặc fallback trailer chuẩn)
+  const ytId = extractYoutubeId(movie.trailerUrl) || 'Way9Dexny3w';
 
-  const ytId =
-    extractYoutubeId(movie.trailerUrl) ||
-    (titleLower.includes('godzilla')
-      ? 'lV1OOlGwExM'
-      : titleLower.includes('omen')
-      ? 'lmN1Op8ygno'
-      : titleLower.includes('poor things')
-      ? 'RlbR5N6veqw'
-      : titleLower.includes('oppenheimer')
-      ? 'uYPbbksJxIg'
-      : titleLower.includes('interstellar')
-      ? 'zSWdZVtXT7E'
-      : titleLower.includes('batman')
-      ? 'mqqft2x_Aa4'
-      : titleLower.includes('john wick')
-      ? 'qEVUtrk8_B4'
-      : titleLower.includes('spider-man')
-      ? 'JfVOs4VSpmA'
-      : titleLower.includes('argylle')
-      ? '7mGu9XyNz2I'
-      : titleLower.includes('marvels')
-      ? 'wS_qbDztgVY'
-      : titleLower.includes('deadpool')
-      ? '73_1biulkYk'
-      : 'd9MyW72ELq0');
-
+  // Lấy 100% Poster từ poster_url trong CSDL
   const rawPoster =
     movie.posterUrl ||
     'https://images.unsplash.com/photo-1534447677768-be436bb09401';
   const isLocal = rawPoster.startsWith('/');
   const basePoster = rawPoster.split('?')[0];
 
+  // Lấy Backdrop tương ứng từ CSDL / local ảnh
+  const rawBackdrop = (movie as any).backdropUrl || (movie as any).backdrop_url;
+  let backdrop = '';
+  if (rawBackdrop) {
+    backdrop = rawBackdrop;
+  } else if (isLocal) {
+    backdrop = rawPoster.includes('/posters/')
+      ? rawPoster.replace('/posters/', '/backdrops/').replace('.jpg', '_hero.jpg')
+      : rawPoster;
+  } else {
+    backdrop = `${basePoster}?auto=format&fit=crop&w=1600&q=85`;
+  }
+
+  const poster = isLocal ? rawPoster : `${basePoster}?auto=format&fit=crop&w=600&q=85`;
+
   return {
-    poster: isLocal ? rawPoster : `${basePoster}?auto=format&fit=crop&w=600&q=85`,
-    backdrop: isLocal
-      ? (rawPoster.includes('/posters/') ? rawPoster.replace('/posters/', '/backdrops/') : rawPoster)
-      : `${basePoster}?auto=format&fit=crop&w=1600&q=85`,
+    poster,
+    backdrop,
     trailerThumb: `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`,
     youtubeId: ytId,
   };
@@ -179,6 +149,53 @@ export default function HomePage() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [redeemSuccess, setRedeemSuccess] = useState<{
+    code: string;
+    message: string;
+  } | null>(null);
+  const [redeemError, setRedeemError] = useState<string | null>(null);
+  const [isRedeemingId, setIsRedeemingId] = useState<number | null>(null);
+
+  const handleRedeemCoupon = async (cp: BackendCoupon) => {
+    if (!userProfile) {
+      setAuthModalTab('login');
+      setShowAuthModal(true);
+      return;
+    }
+
+    const currentPoints = userProfile.loyaltyPoints ?? 0;
+    if (currentPoints < cp.pointsCost) {
+      setRedeemError(
+        `Bạn cần ${cp.pointsCost} điểm để đổi mã này (hiện có ${currentPoints} điểm). Hãy đặt vé xem phim hoặc quay Vòng quay may mắn để tích thêm điểm nhé!`
+      );
+      setTimeout(() => setRedeemError(null), 4500);
+      return;
+    }
+
+    try {
+      setIsRedeemingId(cp.id);
+      const res = await cineBookingApi.redeemCoupon(cp.id);
+      setUserProfile((prev) =>
+        prev ? { ...prev, loyaltyPoints: res.newBalance } : null
+      );
+      navigator.clipboard?.writeText(cp.code);
+      setCopiedCode(cp.code);
+      triggerCinemaConfetti();
+      setRedeemSuccess({
+        code: cp.code,
+        message: `🎉 Đổi thành công mã ${cp.code}! Đã trừ ${res.pointsSpent} điểm (Số dư mới: ${res.newBalance} pts). Mã đã được sao chép vào bộ nhớ tạm!`,
+      });
+      setTimeout(() => {
+        setRedeemSuccess(null);
+        setCopiedCode(null);
+      }, 5000);
+    } catch (err: any) {
+      setRedeemError(err?.message || 'Có lỗi xảy ra khi đổi điểm nhận mã.');
+      setTimeout(() => setRedeemError(null), 4500);
+    } finally {
+      setIsRedeemingId(null);
+    }
+  };
 
   // Trailer Modal
   const [showTrailerModal, setShowTrailerModal] = useState(false);
@@ -255,6 +272,27 @@ export default function HomePage() {
     amount: number;
   } | null>(null);
   const [homeZaloPayMsg, setHomeZaloPayMsg] = useState('');
+  const [homeZaloPayCountdown, setHomeZaloPayCountdown] = useState<number>(0);
+
+  // Đếm ngược thời gian giữ ghế thực tế khi mở Modal ZaloPay trên trang cá nhân
+  useEffect(() => {
+    if (!homeZaloPayModal) return;
+    const timer = setInterval(() => {
+      setHomeZaloPayCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setHomeZaloPayModal(null);
+          alert('Đơn giữ ghế đã hết hạn (quá 5 phút). Ghế đã được tự động giải phóng.');
+          if (userProfile?.id) {
+            cineBookingApi.getUserBookings(userProfile.id).then(setUserBookings).catch(() => {});
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [homeZaloPayModal, userProfile?.id]);
 
   // State Đổi mật khẩu
   const [currentPassword, setCurrentPassword] = useState('');
@@ -409,13 +447,13 @@ export default function HomePage() {
           showtimeList,
           couponList,
         ] = await Promise.all([
-          ensureBackendAuth(),
-          cineBookingApi.getAllMovies(),
-          cineBookingApi.getNowShowingMovies(),
-          cineBookingApi.getComingSoonMovies(),
-          cineBookingApi.getActiveBanners(),
-          cineBookingApi.getCinemas(),
-          cineBookingApi.getShowtimes(),
+          ensureBackendAuth().catch(() => null),
+          cineBookingApi.getAllMovies().catch(() => []),
+          cineBookingApi.getNowShowingMovies().catch(() => []),
+          cineBookingApi.getComingSoonMovies().catch(() => []),
+          cineBookingApi.getActiveBanners().catch(() => []),
+          cineBookingApi.getCinemas().catch(() => []),
+          cineBookingApi.getShowtimes().catch(() => []),
           cineBookingApi.getCoupons(true).catch(() => []),
         ]);
 
@@ -430,7 +468,6 @@ export default function HomePage() {
         setCoupons(couponList || []);
 
         const defaultMovie =
-          moviesNow?.find((m) => m.id === 2) ||
           moviesNow?.[0] ||
           moviesAll?.[0];
         if (defaultMovie) {
@@ -499,8 +536,8 @@ export default function HomePage() {
     (async () => {
       try {
         const [detail, reviews] = await Promise.all([
-          cineBookingApi.getMovieDetail(selectedMovieId),
-          cineBookingApi.getMovieReviews(selectedMovieId),
+          cineBookingApi.getMovieDetail(selectedMovieId).catch(() => null),
+          cineBookingApi.getMovieReviews(selectedMovieId).catch(() => null),
         ]);
         if (!active) return;
         setSelectedMovieDetail(detail);
@@ -1122,6 +1159,7 @@ export default function HomePage() {
             </div>
 
             {/* NÚT CHUYỂN ĐỔI CHẾ ĐỘ DARK MODE / LIGHT MODE CHUẨN MẪU */}
+            
             <button
               onClick={toggleThemeMode}
               title={
@@ -2846,7 +2884,7 @@ export default function HomePage() {
                     Chương trình Ưu đãi & Mã giảm giá
                   </h1>
                   <p className="theme-text-muted text-xs mt-1">
-                    Sao chép mã và nhập ở bước thanh toán để được giảm giá
+                    Vòng quay may mắn đổi điểm thưởng và các mã ưu đãi độc quyền
                   </p>
                 </div>
                 <button
@@ -2858,67 +2896,198 @@ export default function HomePage() {
                 </button>
               </div>
 
+              {/* VÒNG QUAY MAY MẮN CINEWHEEL TRONG PHẦN ƯU ĐÃI */}
+              <LuckyWheel
+                userPoints={userProfile?.loyaltyPoints ?? 0}
+                isLoggedIn={!!userProfile}
+                onRequireLogin={() => {
+                  setAuthModalTab('login');
+                  setShowAuthModal(true);
+                }}
+                onUpdatePoints={(newBal) => {
+                  if (userProfile) {
+                    setUserProfile({ ...userProfile, loyaltyPoints: newBal });
+                  }
+                }}
+              />
+
+              {/* THÔNG BÁO ĐỔI VOUCHER THÀNH CÔNG HOẶC THẤT BẠI */}
+              {redeemSuccess && (
+                <div className="p-4 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-between gap-3 text-sm font-semibold animate-fade-in shadow-lg">
+                  <div className="flex items-center gap-2.5">
+                    <CheckCircle2 size={20} className="text-emerald-400 shrink-0" />
+                    <span>{redeemSuccess.message}</span>
+                  </div>
+                  <button
+                    onClick={() => setRedeemSuccess(null)}
+                    className="p-1 text-emerald-400/80 hover:text-white transition-colors cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+              {redeemError && (
+                <div className="p-4 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-between gap-3 text-sm font-semibold animate-fade-in shadow-lg">
+                  <div className="flex items-center gap-2.5">
+                    <AlertCircle size={20} className="text-rose-400 shrink-0" />
+                    <span>{redeemError}</span>
+                  </div>
+                  <button
+                    onClick={() => setRedeemError(null)}
+                    className="p-1 text-rose-400/80 hover:text-white transition-colors cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {/* TIÊU ĐỀ KHO MÃ VOUCHER & ĐỔI ĐIỂM */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+                <div>
+                  <h2 className="theme-text-main text-lg font-extrabold flex items-center gap-2">
+                    <Gift size={20} className="text-[#693BFF]" />
+                    <span>Kho Mã Ưu Đãi & Đổi Điểm Thưởng</span>
+                  </h2>
+                  <p className="theme-text-muted text-xs mt-0.5">
+                    Sử dụng điểm tích lũy CineClub để đổi ngay các mã giảm giá hấp dẫn
+                  </p>
+                </div>
+                <div className="px-3.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs flex items-center gap-2 self-start sm:self-auto">
+                  <span className="theme-text-muted">Điểm của bạn:</span>
+                  <span className="text-amber-400 font-extrabold flex items-center gap-1">
+                    <Sparkles size={13} className="text-amber-400" />
+                    {userProfile?.loyaltyPoints ?? 0} pts
+                  </span>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 {coupons.map((cp) => {
-                  const badgeText =
-                    cp.discountType === 'percentage'
-                      ? `Giảm ${Number(cp.discountValue)}%`
-                      : `-${Number(cp.discountValue).toLocaleString('vi-VN')}đ`;
+                  const isPercentage =
+                    (cp.type || cp.discountType) === 'percentage';
+                  const rawValue = Number(cp.value ?? cp.discountValue ?? 0);
+                  const minOrder = Number(
+                    cp.minOrderAmount ?? cp.minOrderValue ?? 0
+                  );
+                  const maxDiscount = Number(
+                    cp.maxDiscount ?? cp.maxDiscountAmount ?? 0
+                  );
+                  const badgeText = isPercentage
+                    ? `Giảm ${rawValue}%`
+                    : `-${rawValue.toLocaleString('vi-VN')}đ`;
+
+                  const userPoints = userProfile?.loyaltyPoints ?? 0;
+                  const hasEnoughPoints = userPoints >= cp.pointsCost;
+                  const isRedeeming = isRedeemingId === cp.id;
+
                   return (
                     <div
                       key={cp.id}
-                      className="cinema-card theme-card rounded-2xl bg-[#061020] border border-[#172A48] p-6 flex flex-col justify-between gap-4 shadow-lg cursor-pointer"
+                      className="cinema-card theme-card rounded-2xl bg-[#061020] border border-[#172A48] p-6 flex flex-col justify-between gap-5 shadow-lg transition-all duration-300 hover:border-[#693BFF]/40"
                     >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-2">
                           <span className="px-3 py-1 rounded-full bg-[#693BFF]/20 text-[#693BFF] text-xs font-extrabold">
                             {badgeText}
                           </span>
-                          <span className="text-[11px] theme-text-muted">
-                            Đã dùng: {cp.usedCount}/{cp.usageLimit || '∞'}
+                          <span className="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[11px] font-bold flex items-center gap-1">
+                            <Sparkles size={11} className="text-amber-400" />
+                            Cần {cp.pointsCost} pts
                           </span>
                         </div>
-                        <h3 className="theme-text-main text-lg font-extrabold">
-                          Mã ưu đãi: {cp.code}
-                        </h3>
-                        <p className="theme-text-muted text-xs leading-relaxed">
-                          {cp.description}
-                        </p>
-                        <p className="text-[11px] text-[#693BFF] font-semibold">
-                          Đơn tối thiểu:{' '}
-                          {Number(cp.minOrderValue || 0).toLocaleString(
-                            'vi-VN'
+
+                        <div>
+                          <h3 className="theme-text-main text-lg font-extrabold tracking-wide">
+                            Mã ưu đãi: {cp.code}
+                          </h3>
+                          <p className="theme-text-muted text-xs leading-relaxed mt-1">
+                            {cp.description}
+                          </p>
+                        </div>
+
+                        <div className="space-y-1 pt-2 border-t border-[#172A48]/60 text-[11px]">
+                          <p className="text-[#693BFF] font-semibold flex items-center gap-1.5">
+                            <span>• Đơn tối thiểu:</span>
+                            <strong>
+                              {minOrder.toLocaleString('vi-VN')}đ
+                            </strong>
+                          </p>
+                          {maxDiscount > 0 && isPercentage && (
+                            <p className="theme-text-muted flex items-center gap-1.5">
+                              <span>• Mức giảm tối đa:</span>
+                              <strong>
+                                {maxDiscount.toLocaleString('vi-VN')}đ
+                              </strong>
+                            </p>
                           )}
-                          đ
-                          {cp.maxDiscountAmount
-                            ? ` • Giảm tối đa: ${Number(
-                                cp.maxDiscountAmount
-                              ).toLocaleString('vi-VN')}đ`
-                            : ''}
-                        </p>
+                          <p className="text-[11px] theme-text-muted flex items-center gap-1.5">
+                            <span>• Lượt đã dùng:</span>
+                            <span>
+                              {cp.usedCount}/{cp.usageLimit || '∞'}
+                            </span>
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="pt-3 border-t border-[#172A48]/50 flex items-center justify-between gap-2">
-                        <code className="px-3 py-1.5 rounded-lg bg-[#693BFF]/15 text-[#693BFF] font-mono text-xs font-extrabold">
-                          {cp.code}
-                        </code>
+                      <div className="pt-3 border-t border-[#172A48]/50 flex flex-col gap-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <code className="px-3 py-1.5 rounded-lg bg-[#693BFF]/15 text-[#693BFF] font-mono text-xs font-extrabold select-all">
+                            {cp.code}
+                          </code>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard?.writeText(cp.code);
+                              setCopiedCode(cp.code);
+                              setTimeout(() => setCopiedCode(null), 2000);
+                            }}
+                            className="btn-press px-3 py-1.5 rounded-lg bg-[#172A48] hover:bg-[#203a63] theme-text-main text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                            title="Sao chép mã vào bộ nhớ tạm"
+                          >
+                            {copiedCode === cp.code ? (
+                              <>
+                                <Check size={13} className="text-emerald-400" />
+                                <span className="text-emerald-400 font-bold">Đã chép</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy size={13} />
+                                <span>Sao chép</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* NÚT ĐỔI ĐIỂM THƯỞNG LẤY MÃ */}
                         <button
-                          onClick={() => {
-                            navigator.clipboard?.writeText(cp.code);
-                            setCopiedCode(cp.code);
-                            setTimeout(() => setCopiedCode(null), 2000);
-                          }}
-                          className="btn-press px-3.5 py-1.5 rounded-lg bg-[#693BFF] hover:bg-[#8057FF] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md"
+                          onClick={() => handleRedeemCoupon(cp)}
+                          disabled={isRedeeming}
+                          className={`btn-press w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-md ${
+                            !userProfile
+                              ? 'bg-[#693BFF] hover:bg-[#8057FF] text-white'
+                              : hasEnoughPoints
+                              ? 'bg-gradient-to-r from-amber-500 to-[#693BFF] hover:brightness-110 text-white'
+                              : 'bg-[#172A48]/80 text-[#AAB8D0] hover:bg-[#172A48]'
+                          }`}
                         >
-                          {copiedCode === cp.code ? (
+                          {isRedeeming ? (
                             <>
-                              <Check size={13} />
-                              <span>Đã chép mã</span>
+                              <Loader2 size={13} className="animate-spin" />
+                              <span>Đang đổi điểm...</span>
+                            </>
+                          ) : !userProfile ? (
+                            <>
+                              <LogIn size={13} />
+                              <span>Đăng nhập để đổi ({cp.pointsCost} pts)</span>
+                            </>
+                          ) : hasEnoughPoints ? (
+                            <>
+                              <Sparkles size={13} className="text-amber-200" />
+                              <span>Đổi mã ngay ({cp.pointsCost} pts)</span>
                             </>
                           ) : (
                             <>
-                              <Copy size={13} />
-                              <span>Sao chép mã</span>
+                              <Lock size={13} className="text-rose-400" />
+                              <span>Cần {cp.pointsCost} pts (Thiếu {cp.pointsCost - userPoints} pts)</span>
                             </>
                           )}
                         </button>
@@ -3397,6 +3566,27 @@ export default function HomePage() {
                           ) : b.status === 'pending' ? (
                             <button
                               onClick={async () => {
+                                const remSec = b.holdExpiresAt
+                                  ? Math.max(
+                                      0,
+                                      Math.floor(
+                                        (new Date(b.holdExpiresAt).getTime() -
+                                          Date.now()) /
+                                          1000
+                                      )
+                                    )
+                                  : 0;
+                                if (b.holdExpiresAt && remSec <= 0) {
+                                  alert(
+                                    `Đơn giữ ghế #${b.bookingCode} đã quá 5 phút và đã tự động hết hạn. Ghế đã được giải phóng.`
+                                  );
+                                  const fresh =
+                                    await cineBookingApi.getUserBookings(
+                                      userProfile?.id || 2
+                                    );
+                                  setUserBookings(fresh || []);
+                                  return;
+                                }
                                 try {
                                   const zp =
                                     await cineBookingApi.createZaloPayOrder(
@@ -3410,11 +3600,22 @@ export default function HomePage() {
                                     qrCode: zp.qrCode || zp.orderUrl,
                                     amount: Number(zp.amount || b.totalAmount),
                                   });
+                                  setHomeZaloPayCountdown(
+                                    remSec > 0 ? remSec : 300
+                                  );
                                   setHomeZaloPayMsg(
                                     'Quét mã QR ZaloPay Sandbox hoặc bấm kiểm tra trạng thái sau khi thanh toán.'
                                   );
                                 } catch (err: any) {
-                                  console.error(err);
+                                  alert(
+                                    err?.message ||
+                                      'Không thể tạo mã QR ZaloPay Sandbox'
+                                  );
+                                  const fresh =
+                                    await cineBookingApi.getUserBookings(
+                                      userProfile?.id || 2
+                                    );
+                                  setUserBookings(fresh || []);
                                 }
                               }}
                               className="py-2 text-center rounded-xl bg-[#0068FF] hover:bg-[#0057D9] text-xs font-bold text-white cursor-pointer"
@@ -4013,6 +4214,18 @@ export default function HomePage() {
 
             <div className="text-base font-extrabold text-[#FFB52E]">
               Số tiền: {homeZaloPayModal.amount.toLocaleString('vi-VN')}đ
+            </div>
+
+            {/* THỜI GIAN GIỮ GHẾ THỰC TẾ CÒN LẠI TỪ CSDL */}
+            <div className="flex items-center justify-between text-xs px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
+              <span className="text-[#94A3B8]">Thời gian giữ ghế còn lại:</span>
+              <span className="font-extrabold text-amber-400 font-mono text-sm">
+                {Math.floor(homeZaloPayCountdown / 60)
+                  .toString()
+                  .padStart(2, '0')}
+                :
+                {(homeZaloPayCountdown % 60).toString().padStart(2, '0')}
+              </span>
             </div>
 
             <div className="text-xs text-[#93C5FD]">{homeZaloPayMsg}</div>

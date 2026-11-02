@@ -253,19 +253,62 @@ export interface BackendBookingResponse {
   fnbItems: BackendBookingFnbResponse[];
 }
 
+
+export interface LuckyWheelPrize {
+  id: number;
+  name: string;
+  prizeType: string;
+  prizeValue: number;
+  probabilityWeight: number;
+  color: string;
+  icon: string;
+  slotIndex: number;
+}
+
+export interface SpinResult {
+  slotIndex: number;
+  prizeName: string;
+  prizeType: string;
+  prizeValue: number;
+  pointsSpent: number;
+  pointsRewarded: number;
+  couponCode?: string | null;
+  newBalance: number;
+  message: string;
+}
+
+export interface SpinHistoryItem {
+  id: number;
+  prizeName: string;
+  prizeType: string;
+  pointsSpent: number;
+  pointsRewarded: number;
+  couponCode?: string | null;
+  createdAt: string;
+}
+
 export interface BackendCoupon {
   id: number;
   code: string;
   description: string;
+  type?: string;
   discountType: string; // 'percentage' | 'fixed_amount'
+  value?: number;
   discountValue: number;
+  minOrderAmount?: number;
   minOrderValue: number;
+  maxDiscount?: number | null;
   maxDiscountAmount: number | null;
   usageLimit: number | null;
   usedCount: number;
+  perUserLimit?: number | null;
   startDate: string;
   endDate: string;
+  validFrom?: string;
+  validTo?: string;
   isActive: boolean;
+  status?: string;
+  pointsCost: number;
 }
 
 export interface BackendNotification {
@@ -666,8 +709,67 @@ export const cineBookingApi = {
 
   // 7. F&B Items & Coupons (FnbItemController, CouponController)
   getFnbItems: () => apiFetch<BackendFnbItem[]>('/fnb-items?activeOnly=true'),
-  getCoupons: (activeOnly = true) =>
-    apiFetch<BackendCoupon[]>(`/coupons?activeOnly=${activeOnly}`),
+  getCoupons: async (activeOnly = true) => {
+    const list = await apiFetch<any[]>(`/coupons?activeOnly=${activeOnly}`);
+    return (list || []).map((cp) => {
+      const isPercent = (cp.type || cp.discountType) === 'percentage';
+      const rawVal = Number(cp.value ?? cp.discountValue ?? 0);
+      const minOrder = Number(cp.minOrderAmount ?? cp.minOrderValue ?? 0);
+      const maxDisc =
+        cp.maxDiscount != null
+          ? Number(cp.maxDiscount)
+          : cp.maxDiscountAmount != null
+          ? Number(cp.maxDiscountAmount)
+          : null;
+
+      let cost = 150;
+      if (cp.code === 'CINEMA20') cost = 150;
+      else if (cp.code === 'WELCOME30K') cost = 200;
+      else if (cp.code === 'VIP50K') cost = 300;
+      else if (isPercent) cost = Math.max(100, Math.round(rawVal * 10));
+      else cost = Math.max(100, Math.round(rawVal / 150));
+
+      return {
+        id: cp.id,
+        code: cp.code,
+        description:
+          cp.description ||
+          `Giảm ${
+            isPercent ? `${rawVal}%` : `${rawVal.toLocaleString('vi-VN')}đ`
+          } cho mọi giao dịch xem phim tại CineBooking.`,
+        type: cp.type || (isPercent ? 'percentage' : 'fixed_amount'),
+        discountType: isPercent ? 'percentage' : 'fixed_amount',
+        value: rawVal,
+        discountValue: rawVal,
+        minOrderAmount: minOrder,
+        minOrderValue: minOrder,
+        maxDiscount: maxDisc,
+        maxDiscountAmount: maxDisc,
+        usageLimit: cp.usageLimit,
+        usedCount: cp.usedCount || 0,
+        perUserLimit: cp.perUserLimit,
+        startDate: cp.validFrom || cp.startDate || '',
+        endDate: cp.validTo || cp.endDate || '',
+        validFrom: cp.validFrom,
+        validTo: cp.validTo,
+        isActive: cp.status === 'active' || cp.isActive === true || !cp.status,
+        status: cp.status || 'active',
+        pointsCost: cost,
+      } as BackendCoupon;
+    });
+  },
+  redeemCoupon: async (couponId: number) => {
+    await ensureBackendAuth();
+    return apiFetch<{
+      couponId: number;
+      code: string;
+      pointsSpent: number;
+      newBalance: number;
+      message: string;
+    }>(`/coupons/${couponId}/redeem`, {
+      method: 'POST',
+    });
+  },
   applyCoupon: async (code: string, orderAmount: number, userId?: number) => {
     await ensureBackendAuth();
     return apiFetch<{
@@ -1022,6 +1124,18 @@ export const cineBookingApi = {
     );
   },
 
+  updateMovieAdmin: async (id: number, payload: any) => {
+    const adminAuth = await ensureAdminAuth();
+    return apiFetch<BackendMovie>(
+      `/movies/${id}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      },
+      adminAuth?.accessToken
+    );
+  },
+
   deleteShowtimeAdmin: async (id: number) => {
     const adminAuth = await ensureAdminAuth();
     return apiFetch<void>(
@@ -1130,5 +1244,20 @@ export const cineBookingApi = {
       {},
       adminAuth?.accessToken
     );
+  },
+
+  // 13. Lucky Wheel (Vòng Quay May Mắn Đổi Điểm Thưởng 200 pts)
+  getLuckyWheelPrizes: async () => {
+    return apiFetch<LuckyWheelPrize[]>('/lucky-wheel/prizes');
+  },
+
+  spinLuckyWheel: async () => {
+    return apiFetch<SpinResult>('/lucky-wheel/spin', {
+      method: 'POST',
+    });
+  },
+
+  getLuckyWheelHistory: async () => {
+    return apiFetch<SpinHistoryItem[]>('/lucky-wheel/my-history');
   },
 };

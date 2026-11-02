@@ -89,7 +89,7 @@ public class DataSeeder implements CommandLineRunner {
                 .releaseDate(LocalDate.of(2024, 2, 10))
                 .endDate(LocalDate.of(2026, 12, 31))
                 .posterUrl("https://images.unsplash.com/photo-1489599849927-2ee91cede3ba")
-                .trailerUrl("https://www.youtube.com/watch?v=example1")
+                .trailerUrl("https://www.youtube.com/watch?v=EX6clvId19s")
                 .build());
 
         movieGenreRepository.save(MovieGenre.builder().movie(mai).genre(tamLy).build());
@@ -109,8 +109,8 @@ public class DataSeeder implements CommandLineRunner {
                 .status("now_showing")
                 .releaseDate(LocalDate.of(2024, 3, 1))
                 .endDate(LocalDate.of(2026, 12, 31))
-                .posterUrl("https://images.unsplash.com/photo-1536440136628-849c177e76a1")
-                .trailerUrl("https://www.youtube.com/watch?v=example2")
+                .posterUrl("/images/posters/dune2.jpg")
+                .trailerUrl("https://www.youtube.com/watch?v=Way9Dexny3w")
                 .build());
 
         movieGenreRepository.save(MovieGenre.builder().movie(dune2).genre(sciFi).build());
@@ -131,8 +131,8 @@ public class DataSeeder implements CommandLineRunner {
                 .status("now_showing")
                 .releaseDate(LocalDate.of(2024, 3, 8))
                 .endDate(LocalDate.of(2026, 12, 31))
-                .posterUrl("https://images.unsplash.com/photo-1518709268805-4e9042af9f23")
-                .trailerUrl("https://www.youtube.com/watch?v=example3")
+                .posterUrl("/images/posters/kungfupanda4.jpg")
+                .trailerUrl("https://www.youtube.com/watch?v=_inKs4eeHiI")
                 .build());
 
         movieGenreRepository.save(MovieGenre.builder().movie(kungfuPanda).genre(hoatHinh).build());
@@ -800,12 +800,13 @@ public class DataSeeder implements CommandLineRunner {
                 staff.setPasswordHash(passwordEncoder.encode("Staff@123"));
                 staff.setRole("STAFF");
                 staff.setStatus("active");
+                staff.setFullName("Nhân Viên Soát Vé");
                 userRepository.save(staff);
                 log.info("ÄĂ£ Ä‘á»“ng bá»™ láº¡i máº­t kháº©u BCrypt cho tĂ i khoáº£n staff@cinema.com");
             }
         }, () -> {
             userRepository.save(User.builder()
-                    .fullName("NhĂ¢n ViĂªn SoĂ¡t VĂ©")
+                    .fullName("Nhân Viên Soát Vé")
                     .email("staff@cinema.com")
                     .phone("0909999888")
                     .passwordHash(passwordEncoder.encode("Staff@123"))

@@ -2,15 +2,20 @@ package com.example.demo2.service.impl;
 
 import com.example.demo2.dto.coupon.CouponApplyRequestDTO;
 import com.example.demo2.dto.coupon.CouponCalculationResponseDTO;
+import com.example.demo2.dto.coupon.CouponRedeemResponseDTO;
 import com.example.demo2.dto.coupon.CouponRequestDTO;
 import com.example.demo2.dto.coupon.CouponResponseDTO;
 import com.example.demo2.entity.Coupon;
+import com.example.demo2.entity.LoyaltyTransaction;
+import com.example.demo2.entity.User;
 import com.example.demo2.exception.BadRequestException;
 import com.example.demo2.exception.DuplicateResourceException;
 import com.example.demo2.exception.ResourceNotFoundException;
 import com.example.demo2.mapper.CouponMapper;
 import com.example.demo2.repository.BookingRepository;
 import com.example.demo2.repository.CouponRepository;
+import com.example.demo2.repository.LoyaltyTransactionRepository;
+import com.example.demo2.repository.UserRepository;
 import com.example.demo2.security.CustomUserDetails;
 import com.example.demo2.security.SecurityUtils;
 import com.example.demo2.service.CouponService;
@@ -30,6 +35,8 @@ public class CouponServiceImpl implements CouponService {
 
     private final CouponRepository couponRepository;
     private final BookingRepository bookingRepository;
+    private final UserRepository userRepository;
+    private final LoyaltyTransactionRepository loyaltyTransactionRepository;
 
     @Override
     @Transactional
@@ -172,6 +179,62 @@ public class CouponServiceImpl implements CouponService {
                 .finalAmount(finalAmount)
                 .valid(true)
                 .message(String.format("Áp dụng mã '%s' thành công: Giảm %s VNĐ", coupon.getCode(), discountAmount.toPlainString()))
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public CouponRedeemResponseDTO redeemCouponWithPoints(Long couponId) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        User user = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", currentUserId));
+
+        Coupon coupon = couponRepository.findById(couponId)
+                .orElseThrow(() -> new ResourceNotFoundException("Coupon", "id", couponId));
+
+        if (!"active".equalsIgnoreCase(coupon.getStatus())) {
+            throw new BadRequestException("Mã ưu đãi này hiện không còn hoạt động");
+        }
+
+        // Điểm cần đổi cho từng mã:
+        // CINEMA20: 150 pts, WELCOME30K: 200 pts, VIP50K: 300 pts
+        int pointsCost;
+        if ("CINEMA20".equalsIgnoreCase(coupon.getCode())) {
+            pointsCost = 150;
+        } else if ("WELCOME30K".equalsIgnoreCase(coupon.getCode())) {
+            pointsCost = 200;
+        } else if ("VIP50K".equalsIgnoreCase(coupon.getCode())) {
+            pointsCost = 300;
+        } else if ("percentage".equalsIgnoreCase(coupon.getType())) {
+            pointsCost = Math.max(100, (int) Math.round(coupon.getValue().doubleValue() * 10));
+        } else {
+            pointsCost = Math.max(100, (int) Math.round(coupon.getValue().doubleValue() / 150));
+        }
+
+        int userPoints = user.getLoyaltyPoints() != null ? user.getLoyaltyPoints() : 0;
+        if (userPoints < pointsCost) {
+            throw new BadRequestException("Bạn không đủ điểm CineClub! Cần " + pointsCost + " điểm để đổi mã này (bạn đang có " + userPoints + " điểm).");
+        }
+
+        int newBalance = userPoints - pointsCost;
+        user.setLoyaltyPoints(newBalance);
+        userRepository.save(user);
+
+        loyaltyTransactionRepository.save(LoyaltyTransaction.builder()
+                .user(user)
+                .type("REDEEM_COUPON")
+                .points(-pointsCost)
+                .balanceAfter(newBalance)
+                .description("Đổi điểm nhận mã ưu đãi " + coupon.getCode() + " (-" + pointsCost + " điểm)")
+                .createdAt(LocalDateTime.now())
+                .build());
+
+        return CouponRedeemResponseDTO.builder()
+                .couponId(coupon.getId())
+                .code(coupon.getCode())
+                .pointsSpent(pointsCost)
+                .newBalance(newBalance)
+                .message("Đổi thành công mã " + coupon.getCode() + "! Đã trừ " + pointsCost + " điểm CineClub.")
                 .build();
     }
 

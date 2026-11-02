@@ -17,6 +17,7 @@ import com.example.demo2.service.TicketPriceRuleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -447,6 +448,7 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     @Transactional
+    @Scheduled(fixedRate = 30000)
     public int releaseExpiredHoldBookings() {
         List<Booking> expiredList = bookingRepository.findExpiredPendingBookings(LocalDateTime.now());
         for (Booking b : expiredList) {

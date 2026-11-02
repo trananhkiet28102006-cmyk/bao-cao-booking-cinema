@@ -43,7 +43,8 @@ public class SecurityConfig {
             "/api/v1/fnb-items/**",
             "/api/v1/holidays/**",
             "/api/v1/rooms/**",
-            "/api/v1/seats/**"
+            "/api/v1/seats/**",
+            "/api/v1/lucky-wheel/prizes"
     };
 
     /** Dữ liệu cấu hình kinh doanh: STAFF/ADMIN xem, ADMIN thêm/sửa/xóa. */
@@ -86,8 +87,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/payments/zalopay/callback").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/payments/zalopay/return").permitAll()
 
-                        // ---- Tiện ích công khai ----
+                        // ---- Tiện ích công khai & Khuyến mãi ----
                         .requestMatchers(HttpMethod.POST, "/api/v1/ticket-price-rules/calculate").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/coupons/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/coupons/*/redeem").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/coupons/apply").authenticated()
 
                         // ---- Đánh giá (Review) & Yêu thích (Favorite) ----
@@ -129,8 +132,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, BUSINESS_CONFIG_PATHS).hasRole(ADMIN)
                         .requestMatchers(HttpMethod.DELETE, BUSINESS_CONFIG_PATHS).hasRole(ADMIN)
 
-                        // ---- Còn lại (booking, thanh toán, hoàn tiền, loyalty, /auth/me...): cần đăng nhập.
-                        //      Quyền sở hữu dữ liệu được kiểm tra thêm ở tầng Service. ----
+                        // ---- Còn lại: cần đăng nhập ----
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider)
@@ -162,12 +164,17 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .toList());
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        // Cho phép mọi cổng localhost và 127.0.0.1 (cả http và https)
+        config.setAllowedOriginPatterns(List.of(
+                "http://localhost:*",
+                "http://127.0.0.1:*",
+                "https://localhost:*",
+                "https://127.0.0.1:*"
+        ));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
+        // Cho phép tất cả Headers (*) để không bao giờ bị trình duyệt chặn preflight OPTIONS
+        config.setAllowedHeaders(List.of("*"));
+        config.setExposedHeaders(List.of("*"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 

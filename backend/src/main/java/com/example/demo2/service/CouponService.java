@@ -2,6 +2,7 @@ package com.example.demo2.service;
 
 import com.example.demo2.dto.coupon.CouponApplyRequestDTO;
 import com.example.demo2.dto.coupon.CouponCalculationResponseDTO;
+import com.example.demo2.dto.coupon.CouponRedeemResponseDTO;
 import com.example.demo2.dto.coupon.CouponRequestDTO;
 import com.example.demo2.dto.coupon.CouponResponseDTO;
 
@@ -22,4 +23,6 @@ public interface CouponService {
     void deleteCoupon(Long id);
 
     CouponCalculationResponseDTO validateAndCalculateDiscount(CouponApplyRequestDTO dto);
+
+    CouponRedeemResponseDTO redeemCouponWithPoints(Long couponId);
 }

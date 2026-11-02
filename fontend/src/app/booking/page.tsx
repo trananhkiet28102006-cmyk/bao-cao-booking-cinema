@@ -178,10 +178,10 @@ export default function BookingPage() {
         const queryMovieId = Number(params.get('movieId') || params.get('movie'));
 
         const [auth, showtimes, cinemas, fnbs] = await Promise.all([
-          ensureBackendAuth(),
-          cineBookingApi.getShowtimes(),
-          cineBookingApi.getCinemas(),
-          cineBookingApi.getFnbItems(),
+          ensureBackendAuth().catch(() => null),
+          cineBookingApi.getShowtimes().catch(() => []),
+          cineBookingApi.getCinemas().catch(() => []),
+          cineBookingApi.getFnbItems().catch(() => []),
         ]);
 
         if (!mounted) return;
@@ -369,15 +369,45 @@ export default function BookingPage() {
     };
   }, [showCheckoutModal, couponInput, rawOrderSubtotal, userProfile?.id]);
 
-  // Đồng hồ đếm ngược 5 phút giữ ghế theo quy định của BookingService Backend
+  // Hàm tính số giây còn lại dựa trên thời điểm hết hạn holdExpiresAt lưu trong CSDL
+  const getRemainingHoldSeconds = (holdExpiresAt?: string | null) => {
+    if (!holdExpiresAt) return 0;
+    const target = new Date(holdExpiresAt).getTime();
+    const now = Date.now();
+    return Math.max(0, Math.floor((target - now) / 1000));
+  };
+
+  // Đồng hồ đếm ngược thời gian thực giữ ghế theo CSDL Backend
   useEffect(() => {
     if (!showCheckoutModal && !showZaloPayQRModal) return;
-    if (showCheckoutModal) setCountdown(300);
     const timer = setInterval(() => {
-      setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
     return () => clearInterval(timer);
   }, [showCheckoutModal, showZaloPayQRModal]);
+
+  // Tự động đóng modal, hủy đơn & giải phóng ghế khi hết thời gian giữ ghế
+  useEffect(() => {
+    if (countdown === 0 && showZaloPayQRModal) {
+      setShowZaloPayQRModal(false);
+      alert('Đơn giữ ghế đã hết thời gian (5 phút). Hệ thống đã tự động hủy đơn và giải phóng ghế.');
+      clearSelection();
+      if (activeShowtime) {
+        cineBookingApi.getShowtimeSeats(activeShowtime.id).then((seatLayout) => {
+          if (seatLayout?.seats) syncFromBackend(seatLayout.seats);
+        }).catch(() => {});
+      }
+      if (userProfile?.id) {
+        cineBookingApi.getUserBookings(userProfile.id).then(setUserBookings).catch(() => {});
+      }
+    }
+  }, [countdown, showZaloPayQRModal, activeShowtime, userProfile?.id, clearSelection, syncFromBackend]);
 
   // Hàm truy vấn trạng thái thanh toán thật từ máy chủ ZaloPay Sandbox (POST /api/v1/payments/zalopay/query/{appTransId})
   const checkZaloPayPaymentStatus = async (silent = false) => {
@@ -474,7 +504,8 @@ export default function BookingPage() {
         qrCode: zp.qrCode || zp.orderUrl,
         amount: Number(zp.amount || bookingRes.totalAmount),
       });
-      setCountdown(300);
+      const remSec = getRemainingHoldSeconds(bookingRes.holdExpiresAt) || 300;
+      setCountdown(remSec);
       setZaloPayStatusMsg(
         'Đang chờ bạn quét mã QR hoặc hoàn tất thanh toán trên ZaloPay Sandbox...'
       );
@@ -2326,6 +2357,15 @@ export default function BookingPage() {
                         <div className="grid grid-cols-2 gap-2 pt-1">
                           <button
                             onClick={async () => {
+                              const remSec = getRemainingHoldSeconds(bk.holdExpiresAt);
+                              if (bk.holdExpiresAt && remSec <= 0) {
+                                alert(`Đơn giữ ghế #${bk.bookingCode} đã hết hạn (quá 5 phút). Ghế đã được tự động giải phóng.`);
+                                if (userProfile?.id) {
+                                  const fresh = await cineBookingApi.getUserBookings(userProfile.id);
+                                  setUserBookings(fresh || []);
+                                }
+                                return;
+                              }
                               try {
                                 const zp =
                                   await cineBookingApi.createZaloPayOrder(bk.id);
@@ -2338,14 +2378,18 @@ export default function BookingPage() {
                                   qrCode: zp.qrCode || zp.orderUrl,
                                   amount: Number(zp.amount || bk.totalAmount),
                                 });
-                                setCountdown(300);
+                                setCountdown(remSec > 0 ? remSec : 300);
                                 setZaloPayStatusMsg(
                                   'Đang chờ bạn quét mã QR hoặc hoàn tất thanh toán trên ZaloPay Sandbox...'
                                 );
                                 setShowAccountDrawer(false);
                                 setShowZaloPayQRModal(true);
-                              } catch (err) {
-                                console.error('Lỗi tạo lại QR ZaloPay:', err);
+                              } catch (err: any) {
+                                alert(err?.message || 'Lỗi tạo lại QR ZaloPay');
+                                if (userProfile?.id) {
+                                  const fresh = await cineBookingApi.getUserBookings(userProfile.id);
+                                  setUserBookings(fresh || []);
+                                }
                               }
                             }}
                             className="py-1.5 rounded-xl bg-[#0068FF] hover:bg-[#0057D9] text-xs font-bold text-white transition-colors cursor-pointer"
