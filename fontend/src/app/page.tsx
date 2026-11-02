@@ -3082,11 +3082,11 @@ export default function HomePage() {
                             )}
                           </p>
 
-                          {/* THÔNG TIN LƯỢT DÙNG & THANH MÀU TIẾN TRÌNH */}
+                          {/* THÔNG TIN LƯỢT ĐỔI & THANH MÀU TIẾN TRÌNH */}
                           <div className="space-y-1.5 pt-1">
                             <div className="flex items-center justify-between text-[11px] theme-text-muted">
                               <span className="flex items-center gap-1">
-                                <span>Lượt đã dùng:</span>
+                                <span>Lượt đã đổi:</span>
                                 <strong className={isDarkMode ? 'text-white' : 'text-slate-800'}>
                                   {cp.usedCount}/{cp.usageLimit || '∞'}
                                 </strong>
@@ -3096,7 +3096,7 @@ export default function HomePage() {
                               </span>
                             </div>
 
-                            {/* THANH MÀU HIỂN THỊ SỐ LƯỢT DÙNG */}
+                            {/* THANH MÀU HIỂN THỊ SỐ LƯỢT ĐỔI */}
                             <div className={`w-full h-2 rounded-full overflow-hidden ${
                               isDarkMode ? 'bg-[#0A1830] border border-[#172A48]' : 'bg-slate-200'
                             }`}>
@@ -3113,7 +3113,7 @@ export default function HomePage() {
                               <div className="flex items-center justify-between text-[10px] pt-0.5">
                                 <span className={isUserLimitReached ? 'text-rose-400 font-bold' : 'text-[#8EA2C6]'}>
                                   {isUserLimitReached
-                                    ? `Đã dùng hết ${myRedeemed}/${userLimit} lượt của bạn`
+                                    ? `Đã đổi hết ${myRedeemed}/${userLimit} lượt của bạn`
                                     : `Lượt của bạn: ${myRedeemed}/${userLimit} lần`}
                                 </span>
                                 <span className={isUserLimitReached ? 'text-rose-400 font-black' : 'text-emerald-400 font-semibold'}>
