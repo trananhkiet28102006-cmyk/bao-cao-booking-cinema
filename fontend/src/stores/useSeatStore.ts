@@ -128,18 +128,10 @@ let storeState: SeatState = {
   syncFromBackend: (backendSeats, priceMap) => {
     const dbSeats = buildSeatsFromDatabase(backendSeats, priceMap);
 
-    // Chọn mặc định 2 ghế trống trung tâm hàng C (C04, C05) từ dữ liệu thật của DB
-    const defaultPick = dbSeats.filter(
-      (s) => (s.id === 'C04' || s.id === 'C05') && s.status === 'AVAILABLE'
-    );
-    const fallbackPick =
-      defaultPick.length > 0
-        ? defaultPick
-        : dbSeats.filter((s) => s.status === 'AVAILABLE').slice(0, 2);
-
+    // Mặc định không chọn ghế sẵn, để người dùng tự chọn ghế theo ý muốn
     setState({
       seats: dbSeats,
-      selectedSeats: fallbackPick,
+      selectedSeats: [],
       isBackendSynced: true,
     });
   },
