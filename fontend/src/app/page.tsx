@@ -217,11 +217,13 @@ export default function HomePage() {
 
     // 1. Đọc số lần đã đổi được lưu trong LocalStorage theo user ID
     try {
-      const stored = localStorage.getItem(`cinebooking_redeemed_${userProfile.id}`);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        for (const [k, v] of Object.entries(parsed)) {
-          map[k] = Math.max(map[k] || 0, Number(v) || 0);
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem(`cinebooking_redeemed_${userProfile.id}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          for (const [k, v] of Object.entries(parsed)) {
+            map[k] = Math.max(map[k] || 0, Number(v) || 0);
+          }
         }
       }
     } catch {}

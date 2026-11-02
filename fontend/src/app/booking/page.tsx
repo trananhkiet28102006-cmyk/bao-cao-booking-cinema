@@ -35,6 +35,9 @@ import {
   History,
   LogOut,
   LogIn,
+  Sparkles,
+  Check,
+  Copy,
 } from 'lucide-react';
 import { useSeatStore, SeatData } from '@/stores/useSeatStore';
 import SeatMap2D from '@/components/SeatMap2D';
@@ -92,11 +95,13 @@ export default function BookingPage() {
 
     // 1. Đọc từ LocalStorage theo userId
     try {
-      const stored = localStorage.getItem(`cinebooking_redeemed_${userProfile.id}`);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        for (const [code, count] of Object.entries(parsed)) {
-          if (Number(count) > 0) set.add(code.toUpperCase());
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem(`cinebooking_redeemed_${userProfile.id}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          for (const [code, count] of Object.entries(parsed)) {
+            if (Number(count) > 0) set.add(code.toUpperCase());
+          }
         }
       }
     } catch {}
