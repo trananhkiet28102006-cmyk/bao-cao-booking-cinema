@@ -399,7 +399,7 @@ export default function BookingPage() {
       alert('Đơn giữ ghế đã hết thời gian (5 phút). Hệ thống đã tự động hủy đơn và giải phóng ghế.');
       clearSelection();
       if (activeShowtime) {
-        cineBookingApi.getShowtimeSeats(activeShowtime.id).then((seatLayout) => {
+        cineBookingApi.getSeatLayoutByShowtime(activeShowtime.id).then((seatLayout) => {
           if (seatLayout?.seats) syncFromBackend(seatLayout.seats);
         }).catch(() => {});
       }

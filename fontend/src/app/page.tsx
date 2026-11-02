@@ -156,47 +156,6 @@ export default function HomePage() {
   const [redeemError, setRedeemError] = useState<string | null>(null);
   const [isRedeemingId, setIsRedeemingId] = useState<number | null>(null);
 
-  const handleRedeemCoupon = async (cp: BackendCoupon) => {
-    if (!userProfile) {
-      setAuthModalTab('login');
-      setShowAuthModal(true);
-      return;
-    }
-
-    const currentPoints = userProfile.loyaltyPoints ?? 0;
-    if (currentPoints < cp.pointsCost) {
-      setRedeemError(
-        `Bạn cần ${cp.pointsCost} điểm để đổi mã này (hiện có ${currentPoints} điểm). Hãy đặt vé xem phim hoặc quay Vòng quay may mắn để tích thêm điểm nhé!`
-      );
-      setTimeout(() => setRedeemError(null), 4500);
-      return;
-    }
-
-    try {
-      setIsRedeemingId(cp.id);
-      const res = await cineBookingApi.redeemCoupon(cp.id);
-      setUserProfile((prev) =>
-        prev ? { ...prev, loyaltyPoints: res.newBalance } : null
-      );
-      navigator.clipboard?.writeText(cp.code);
-      setCopiedCode(cp.code);
-      triggerCinemaConfetti();
-      setRedeemSuccess({
-        code: cp.code,
-        message: `🎉 Đổi thành công mã ${cp.code}! Đã trừ ${res.pointsSpent} điểm (Số dư mới: ${res.newBalance} pts). Mã đã được sao chép vào bộ nhớ tạm!`,
-      });
-      setTimeout(() => {
-        setRedeemSuccess(null);
-        setCopiedCode(null);
-      }, 5000);
-    } catch (err: any) {
-      setRedeemError(err?.message || 'Có lỗi xảy ra khi đổi điểm nhận mã.');
-      setTimeout(() => setRedeemError(null), 4500);
-    } finally {
-      setIsRedeemingId(null);
-    }
-  };
-
   // Trailer Modal
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [modalVideoId, setModalVideoId] = useState('Way9Dexny3w');
@@ -249,6 +208,107 @@ export default function HomePage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMsg, setProfileMsg] = useState<string | null>(null);
   const [switchingAccount, setSwitchingAccount] = useState(false);
+
+  const [localRedeemedMap, setLocalRedeemedMap] = useState<Record<string, number>>({});
+
+  const userCouponRedeemCounts = useMemo(() => {
+    const map: Record<string, number> = { ...localRedeemedMap };
+    if (!userProfile) return map;
+
+    // 1. Đọc số lần đã đổi được lưu trong LocalStorage theo user ID
+    try {
+      const stored = localStorage.getItem(`cinebooking_redeemed_${userProfile.id}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        for (const [k, v] of Object.entries(parsed)) {
+          map[k] = Math.max(map[k] || 0, Number(v) || 0);
+        }
+      }
+    } catch {}
+
+    // 2. Đếm từ lịch sử giao dịch đổi điểm trong CSDL
+    if (loyaltySummary?.recentTransactions) {
+      for (const tx of loyaltySummary.recentTransactions) {
+        if (tx.type === 'REDEEM_COUPON' || (tx.description && tx.description.includes('Đổi điểm'))) {
+          for (const cp of coupons) {
+            if (tx.description && tx.description.toUpperCase().includes(cp.code.toUpperCase())) {
+              map[cp.code] = Math.max(map[cp.code] || 0, 1);
+            }
+          }
+        }
+      }
+    }
+
+    return map;
+  }, [userProfile, loyaltySummary, coupons, localRedeemedMap]);
+
+  const handleRedeemCoupon = async (cp: BackendCoupon) => {
+    if (!userProfile) {
+      setAuthModalTab('login');
+      setShowAuthModal(true);
+      return;
+    }
+
+    // Kiểm tra giới hạn số lần đổi mã cho mỗi tài khoản
+    const userLimit = cp.perUserLimit || 1;
+    const currentRedeemed = userCouponRedeemCounts[cp.code] || 0;
+    if (currentRedeemed >= userLimit) {
+      setRedeemError(
+        `Tài khoản của bạn đã đạt giới hạn đổi mã '${cp.code}' (tối đa ${userLimit} lần/tài khoản)! Không thể đổi thêm.`
+      );
+      setTimeout(() => setRedeemError(null), 4500);
+      return;
+    }
+
+    const currentPoints = userProfile.loyaltyPoints ?? 0;
+    if (currentPoints < cp.pointsCost) {
+      setRedeemError(
+        `Bạn cần ${cp.pointsCost} điểm để đổi mã này (hiện có ${currentPoints} điểm). Hãy đặt vé xem phim hoặc quay Vòng quay may mắn để tích thêm điểm nhé!`
+      );
+      setTimeout(() => setRedeemError(null), 4500);
+      return;
+    }
+
+    try {
+      setIsRedeemingId(cp.id);
+      const res = await cineBookingApi.redeemCoupon(cp.id);
+      setUserProfile((prev) =>
+        prev ? { ...prev, loyaltyPoints: res.newBalance } : null
+      );
+
+      // Cập nhật số lần đổi vào LocalStorage và state
+      if (userProfile?.id) {
+        try {
+          const key = `cinebooking_redeemed_${userProfile.id}`;
+          const current = JSON.parse(localStorage.getItem(key) || '{}');
+          current[cp.code] = (current[cp.code] || 0) + 1;
+          localStorage.setItem(key, JSON.stringify(current));
+          setLocalRedeemedMap((prev) => ({
+            ...prev,
+            [cp.code]: (prev[cp.code] || 0) + 1,
+          }));
+        } catch {}
+      }
+      cineBookingApi.getMyLoyaltySummary().then(setLoyaltySummary).catch(() => {});
+
+      navigator.clipboard?.writeText(cp.code);
+      setCopiedCode(cp.code);
+      triggerCinemaConfetti();
+      setRedeemSuccess({
+        code: cp.code,
+        message: `🎉 Đổi thành công mã ${cp.code}! Đã trừ ${res.pointsSpent} điểm (Số dư mới: ${res.newBalance} pts). Mã đã được sao chép vào bộ nhớ tạm!`,
+      });
+      setTimeout(() => {
+        setRedeemSuccess(null);
+        setCopiedCode(null);
+      }, 5000);
+    } catch (err: any) {
+      setRedeemError(err?.message || 'Có lỗi xảy ra khi đổi điểm nhận mã.');
+      setTimeout(() => setRedeemError(null), 4500);
+    } finally {
+      setIsRedeemingId(null);
+    }
+  };
 
   // State cho Chuông Thông báo, Xem Vé Điện Tử QR, Mở QR ZaloPay, Soát vé Check-in, Thêm Phim Mới, Đổi mật khẩu & Đăng ký
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
@@ -2979,6 +3039,10 @@ export default function HomePage() {
                   const userPoints = userProfile?.loyaltyPoints ?? 0;
                   const hasEnoughPoints = userPoints >= cp.pointsCost;
                   const isRedeeming = isRedeemingId === cp.id;
+                  const userLimit = cp.perUserLimit || 1;
+                  const myRedeemed = userCouponRedeemCounts[cp.code] || 0;
+                  const isUserLimitReached = !!userProfile && myRedeemed >= userLimit;
+                  const usedPercent = Math.min(100, Math.round(((cp.usedCount || 0) / (cp.usageLimit || 100)) * 100));
 
                   return (
                     <div
@@ -3005,27 +3069,59 @@ export default function HomePage() {
                           </p>
                         </div>
 
-                        <div className="space-y-1 pt-2 border-t border-[#172A48]/60 text-[11px]">
-                          <p className="text-[#693BFF] font-semibold flex items-center gap-1.5">
-                            <span>• Đơn tối thiểu:</span>
-                            <strong>
-                              {minOrder.toLocaleString('vi-VN')}đ
-                            </strong>
-                          </p>
-                          {maxDiscount > 0 && isPercentage && (
-                            <p className="theme-text-muted flex items-center gap-1.5">
-                              <span>• Mức giảm tối đa:</span>
-                              <strong>
-                                {maxDiscount.toLocaleString('vi-VN')}đ
-                              </strong>
-                            </p>
-                          )}
-                          <p className="text-[11px] theme-text-muted flex items-center gap-1.5">
-                            <span>• Lượt đã dùng:</span>
-                            <span>
-                              {cp.usedCount}/{cp.usageLimit || '∞'}
+                        <div className="space-y-2 pt-2 border-t border-[#172A48]/60 text-[11px]">
+                          <p className="text-[#693BFF] font-semibold flex items-center justify-between">
+                            <span className="flex items-center gap-1.5">
+                              <span>• Đơn tối thiểu:</span>
+                              <strong>{minOrder.toLocaleString('vi-VN')}đ</strong>
                             </span>
+                            {maxDiscount > 0 && isPercentage && (
+                              <span className="theme-text-muted text-[10.5px]">
+                                Giảm tối đa: <strong>{maxDiscount.toLocaleString('vi-VN')}đ</strong>
+                              </span>
+                            )}
                           </p>
+
+                          {/* THÔNG TIN LƯỢT DÙNG & THANH MÀU TIẾN TRÌNH */}
+                          <div className="space-y-1.5 pt-1">
+                            <div className="flex items-center justify-between text-[11px] theme-text-muted">
+                              <span className="flex items-center gap-1">
+                                <span>Lượt đã dùng:</span>
+                                <strong className={isDarkMode ? 'text-white' : 'text-slate-800'}>
+                                  {cp.usedCount}/{cp.usageLimit || '∞'}
+                                </strong>
+                              </span>
+                              <span className="px-2 py-0.5 rounded-md bg-[#693BFF]/15 border border-[#693BFF]/30 text-[#A875FF] font-bold text-[10px]">
+                                Giới hạn: {userLimit} lần/tài khoản
+                              </span>
+                            </div>
+
+                            {/* THANH MÀU HIỂN THỊ SỐ LƯỢT DÙNG */}
+                            <div className={`w-full h-2 rounded-full overflow-hidden ${
+                              isDarkMode ? 'bg-[#0A1830] border border-[#172A48]' : 'bg-slate-200'
+                            }`}>
+                              <div
+                                style={{
+                                  width: `${Math.max(usedPercent > 0 ? 6 : 0, usedPercent)}%`,
+                                }}
+                                className="h-full rounded-full bg-gradient-to-r from-[#693BFF] via-[#8B5CF6] to-[#06B6D4] transition-all duration-700 shadow-sm"
+                              />
+                            </div>
+
+                            {/* TIẾN TRÌNH ĐỔI MÃ CỦA TÀI KHOẢN */}
+                            {userProfile && (
+                              <div className="flex items-center justify-between text-[10px] pt-0.5">
+                                <span className={isUserLimitReached ? 'text-rose-400 font-bold' : 'text-[#8EA2C6]'}>
+                                  {isUserLimitReached
+                                    ? `Đã dùng hết ${myRedeemed}/${userLimit} lượt của bạn`
+                                    : `Lượt của bạn: ${myRedeemed}/${userLimit} lần`}
+                                </span>
+                                <span className={isUserLimitReached ? 'text-rose-400 font-black' : 'text-emerald-400 font-semibold'}>
+                                  {isUserLimitReached ? 'Hết lượt đổi' : `Còn ${userLimit - myRedeemed} lượt`}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -3060,13 +3156,15 @@ export default function HomePage() {
                         {/* NÚT ĐỔI ĐIỂM THƯỞNG LẤY MÃ */}
                         <button
                           onClick={() => handleRedeemCoupon(cp)}
-                          disabled={isRedeeming}
-                          className={`btn-press w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-md ${
+                          disabled={isRedeeming || isUserLimitReached}
+                          className={`btn-press w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-md ${
                             !userProfile
-                              ? 'bg-[#693BFF] hover:bg-[#8057FF] text-white'
+                              ? 'bg-[#693BFF] hover:bg-[#8057FF] text-white cursor-pointer'
+                              : isUserLimitReached
+                              ? 'bg-[#0F1E33] border border-rose-500/40 text-rose-400/90 cursor-not-allowed shadow-none'
                               : hasEnoughPoints
-                              ? 'bg-gradient-to-r from-amber-500 to-[#693BFF] hover:brightness-110 text-white'
-                              : 'bg-[#172A48]/80 text-[#AAB8D0] hover:bg-[#172A48]'
+                              ? 'bg-gradient-to-r from-amber-500 to-[#693BFF] hover:brightness-110 text-white cursor-pointer'
+                              : 'bg-[#172A48]/80 text-[#AAB8D0] hover:bg-[#172A48] cursor-pointer'
                           }`}
                         >
                           {isRedeeming ? (
@@ -3076,8 +3174,13 @@ export default function HomePage() {
                             </>
                           ) : !userProfile ? (
                             <>
-                              <LogIn size={13} />
+                              <Sparkles size={13} />
                               <span>Đăng nhập để đổi ({cp.pointsCost} pts)</span>
+                            </>
+                          ) : isUserLimitReached ? (
+                            <>
+                              <Lock size={13} className="text-rose-400" />
+                              <span>Đã đạt giới hạn ({myRedeemed}/{userLimit} lần)</span>
                             </>
                           ) : hasEnoughPoints ? (
                             <>
@@ -3086,8 +3189,8 @@ export default function HomePage() {
                             </>
                           ) : (
                             <>
-                              <Lock size={13} className="text-rose-400" />
-                              <span>Cần {cp.pointsCost} pts (Thiếu {cp.pointsCost - userPoints} pts)</span>
+                              <Sparkles size={13} className="text-slate-400" />
+                              <span>Cần thêm {cp.pointsCost - userPoints} pts</span>
                             </>
                           )}
                         </button>

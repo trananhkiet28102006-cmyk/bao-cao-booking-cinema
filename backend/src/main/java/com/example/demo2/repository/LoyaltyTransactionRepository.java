@@ -12,4 +12,8 @@ public interface LoyaltyTransactionRepository extends JpaRepository<LoyaltyTrans
     List<LoyaltyTransaction> findByUserIdOrderByCreatedAtDesc(Long userId);
 
     List<LoyaltyTransaction> findByBookingId(Long bookingId);
+
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(l) FROM LoyaltyTransaction l WHERE l.user.id = :userId AND l.type = 'REDEEM_COUPON' AND l.description LIKE %:code%")
+    long countRedeemedByUserAndCode(@org.springframework.data.repository.query.Param("userId") Long userId, 
+                                   @org.springframework.data.repository.query.Param("code") String code);
 }

@@ -196,6 +196,13 @@ public class CouponServiceImpl implements CouponService {
             throw new BadRequestException("Mã ưu đãi này hiện không còn hoạt động");
         }
 
+        // Kiểm tra giới hạn số lần đổi mã cho mỗi tài khoản (perUserLimit)
+        int userLimit = coupon.getPerUserLimit() != null ? coupon.getPerUserLimit() : 1;
+        long alreadyRedeemed = loyaltyTransactionRepository.countRedeemedByUserAndCode(user.getId(), coupon.getCode());
+        if (alreadyRedeemed >= userLimit) {
+            throw new BadRequestException("Tài khoản của bạn đã đạt giới hạn đổi mã '" + coupon.getCode() + "' (tối đa " + userLimit + " lần/tài khoản)!");
+        }
+
         // Điểm cần đổi cho từng mã:
         // CINEMA20: 150 pts, WELCOME30K: 200 pts, VIP50K: 300 pts
         int pointsCost;
